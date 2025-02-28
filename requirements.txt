@@ -1,0 +1,12 @@
+fastapi 
+uvicorn
+gunicorn
+langchain
+langchain-openai
+langchain-core
+langchain-community
+openai
+python-dotenv
+tiktoken
+jupyterlab
+flask
