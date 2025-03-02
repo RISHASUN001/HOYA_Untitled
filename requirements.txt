@@ -24,3 +24,4 @@ faiss-cpu
 fuzzywuzzy
 python-Levenshtein
 pypdf
+flask-cors
