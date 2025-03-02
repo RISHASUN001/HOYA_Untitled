@@ -203,8 +203,7 @@ def chatbot():
         # Placeholder for LangChain response
         response = chain.invoke({"question": raw_data})
 
-        return jsonify({"user_input": raw_data, "response": response})
-
+        return jsonify({"user_input": raw_data})
     except Exception as e:
         return jsonify({"error": str(e)}), 500  # Return an error if something goes wrong
 
