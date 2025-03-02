@@ -150,8 +150,8 @@ def structured_retriever(question: str) -> str:
 
 def retriever(question: str):
     structured_data = structured_retriever(question)
-    unstructured_data = [el.page_content for el in vector_index.similarity_search(question)]
-    return f"Unstructured data:\n{unstructured_data}"
+    return f"Structured Data:\n{structured_data}"
+
 
 def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
     return [msg for pair in chat_history for msg in (HumanMessage(content=pair[0]), AIMessage(content=pair[1]))]
@@ -192,7 +192,6 @@ def options():
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
-        # Get raw data as text
         raw_data = request.data.decode("utf-8").strip()
 
         if not raw_data:
@@ -200,12 +199,16 @@ def chatbot():
 
         print(f"User input: {raw_data}")
 
-        # Placeholder for LangChain response
+        # Invoke the full retrieval and response generation chain
         response = chain.invoke({"question": raw_data})
 
-        return jsonify({"user_input": raw_data, "response": response})
+        # Ensure the response is properly structured
+        formatted_response = f"Structured Data:\n{response}"
+
+        return jsonify({"user_input": raw_data, "response": formatted_response})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500  # Return an error if something goes wrong
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     print("Flask app is starting...")  # Health check message
