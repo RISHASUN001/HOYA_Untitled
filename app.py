@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 load_dotenv(override=True)
 
 # Flask App Setup
-app = Flask(__name__)
+app = Flask(name)
 CORS(app)
 
 # API Key & Environment Checks
