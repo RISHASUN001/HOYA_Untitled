@@ -187,32 +187,27 @@ def options():
     response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     response.headers.add("Access-Control-Allow-Headers", "Content-Type")
     return response, 200
-# Flask API Routes
+
+# Flask API Route for handling both JSON and raw string input
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
-        # First, try to get JSON data
-        data = request.get_json(silent=True)
+        # Get raw data as text
+        raw_data = request.data.decode("utf-8").strip()
 
-        if isinstance(data, str):  # If input is a plain string, use it directly
-            user_input = data.strip()
-        elif isinstance(data, dict) and "message" in data:  # If JSON, extract "message"
-            user_input = data["message"].strip()
-        else:
-            return jsonify({"error": "Invalid input format"}), 400
-
-        if not user_input:
+        if not raw_data:
             return jsonify({"error": "No input provided"}), 400
 
-        print(f"User input: {user_input}")
+        print(f"User input: {raw_data}")
 
-        
-        response = chain.invoke({"question": user_input})
+        # Placeholder for LangChain response
+        response = {"reply": f"Mock response for: {raw_data}"}
 
-        return jsonify({"user_input": user_input, "response": response})
+        return jsonify({"user_input": raw_data, "response": response})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500  # Return an error if something goes wrong
 
 if __name__ == "__main__":
+    print("Flask app is starting...")  # Health check message
     app.run(debug=True, host="0.0.0.0", port=3000)
