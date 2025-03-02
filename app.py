@@ -175,33 +175,31 @@ prompt = ChatPromptTemplate.from_template("""
 chain = RunnableParallel({"context": _search_query | retriever, "question": RunnablePassthrough()}) | prompt | llm | StrOutputParser()
 
 # Flask API Routes
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "Flask API is running!"})
-
-@app.route("/", methods=["OPTIONS"])
-def options():
-    response = jsonify({})
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type")
-    return response, 200
-
 @app.route("/", methods=["POST"])
 def chatbot():
-    data = request.json
-    user_input = data.get('message', '')
+    try:
+        # First, try to get JSON data
+        data = request.get_json(silent=True)
 
-    if not user_input:
-        return jsonify({"error": "No input provided"}), 400
+        if isinstance(data, str):  # If input is a plain string, use it directly
+            user_input = data.strip()
+        elif isinstance(data, dict) and "message" in data:  # If JSON, extract "message"
+            user_input = data["message"].strip()
+        else:
+            return jsonify({"error": "Invalid input format"}), 400
 
-    print(f"User input: {user_input}")
+        if not user_input:
+            return jsonify({"error": "No input provided"}), 400
 
-    response = chain.invoke({"question": user_input})
+        print(f"User input: {user_input}")
 
-    return jsonify({"user_input": user_input, "response": response})
+        
+       response = chain.invoke({"question": user_input})
 
-# Run Flask App
-if __name__ == "__main__":
-    print("Flask app is starting...")
-    app.run(host="0.0.0.0", port=3000, debug=True)
+        return jsonify({"user_input": user_input, "response": response})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500  # Return an error if something goes wrong
+
+if name == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
