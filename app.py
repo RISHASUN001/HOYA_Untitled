@@ -151,7 +151,7 @@ def structured_retriever(question: str) -> str:
 def retriever(question: str):
     structured_data = structured_retriever(question)
     unstructured_data = [el.page_content for el in vector_index.similarity_search(question)]
-    return f"Structured data:\n{structured_data}\nUnstructured data:\n{'#Document '.join(unstructured_data)}"
+    return f"Structured data:\n{structured_data}"
 
 def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
     return [msg for pair in chat_history for msg in (HumanMessage(content=pair[0]), AIMessage(content=pair[1]))]
