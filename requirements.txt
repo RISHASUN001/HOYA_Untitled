@@ -10,3 +10,4 @@ python-dotenv
 tiktoken
 jupyterlab
 flask
+flask_cors
