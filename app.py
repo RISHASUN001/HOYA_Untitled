@@ -201,7 +201,7 @@ def chatbot():
         print(f"User input: {raw_data}")
 
         # Placeholder for LangChain response
-        response = {"reply": f"Mock response for: {raw_data}"}
+        response = chain.invoke({"question": user_input})
 
         return jsonify({"user_input": raw_data, "response": response})
 
