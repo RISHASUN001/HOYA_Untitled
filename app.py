@@ -26,7 +26,7 @@ def analyze_person():
     
     response = {
         "name": name,
-        "description": f"{name} is a good person."
+        "description": f"{name} is a good person. yayyyy!!!"
     }
     
     print(f"Received request for: {name}")  # Print statement for logging
