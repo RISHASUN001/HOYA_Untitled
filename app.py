@@ -174,6 +174,19 @@ prompt = ChatPromptTemplate.from_template("""
 
 chain = RunnableParallel({"context": _search_query | retriever, "question": RunnablePassthrough()}) | prompt | llm | StrOutputParser()
 
+# Route for checking if the API is running
+@app.route('/', methods=['GET'])
+def home():
+    return "Flask API is running!", 200
+
+# Handle OPTIONS requests for CORS preflight
+@app.route('/', methods=['OPTIONS'])
+def options():
+    response = jsonify({})
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+    return response, 200
 # Flask API Routes
 @app.route("/", methods=["POST"])
 def chatbot():
