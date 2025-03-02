@@ -2,6 +2,12 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# Route for checking if the API is running
+@app.route('/', methods=['GET'])
+def home():
+    return "Flask API is running!", 200
+
+# POST route for processing input
 @app.route('/', methods=['POST'])
 def analyze_person():
     data = request.json
