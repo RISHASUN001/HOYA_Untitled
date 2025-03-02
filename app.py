@@ -194,7 +194,7 @@ def chatbot():
         print(f"User input: {user_input}")
 
         
-       response = chain.invoke({"question": user_input})
+        response = chain.invoke({"question": user_input})
 
         return jsonify({"user_input": user_input, "response": response})
 
