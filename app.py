@@ -66,10 +66,14 @@ llm = AzureChatOpenAI(
     temperature=0
 )
 
+NEO4J_URI="neo4j+s://6f619797.databases.neo4j.io"
+NEO4J_USERNAME="neo4j"
+NEO4J_PASSWORD="loVyer5cvr7MO2MXwob-k7GFq18Bu2iYSoTzxHCR_2A"
+
 graph = Neo4jGraph(
-    url=os.getenv("NEO4J_URI"),
-    username=os.getenv("NEO4J_USERNAME"),
-    password=os.getenv("NEO4J_PASSWORD")
+    url=NEO4J_URI,
+    username=NEO4J_USERNAME,
+    password=NEO4J_PASSWORD
 )
 
 # Ensure index exists in Neo4j
