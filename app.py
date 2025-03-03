@@ -198,8 +198,7 @@ def chatbot():
         print(f"User input: {raw_data}")
         response = chain.invoke({"question": raw_data})
         
-        formatted_response = f"\nResponse:\n{response}"
-        return formatted_response, 200
+        return response, 200
 
     except Exception as e:
         return f"Error: {str(e)}", 500
