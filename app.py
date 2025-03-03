@@ -117,7 +117,8 @@ def generate_full_text_query(input: str) -> str:
 def structured_retriever(question: str) -> str:
     result = ""
     entities = entity_chain.invoke({"question": question})
-    if not hasattr(entities, 'names') or not entities.names:
+    entity_names = entities.get("names", [])
+    if not entity_names:
         return "No entities found in the question."
 
     for entity in entities.names:
