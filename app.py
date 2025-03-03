@@ -209,6 +209,6 @@ def chatbot():
     except Exception as e:
         return jsonify({"error": str(e)}), 500  # Return an error if something goes wrong
 
-if name == "__main__":
+if __name__ == "__main__":
     print("Flask app is starting...")  # Health check message
-    app.run (https://app.run/)(debug=True, host="0.0.0.0 (https://0.0.0.0/)", port=3000)
+    app.run(debug=True, host="0.0.0.0", port=3000)
