@@ -151,8 +151,7 @@ def structured_retriever(question: str) -> str:
 def retriever(question: str):
     structured_data = structured_retriever(question)
     unstructured_data = [el.page_content for el in vector_index.similarity_search(question)]
-    return f"Structured data:\n{structured_data}\nUnstructured data:\n{'#Document'.join(unstructured_data)}"
-
+    return f"Structured data:\n{structured_data}\n\nUnstructured data:\n{'#Document'.join(unstructured_data)}"
 
 def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
     return [msg for pair in chat_history for msg in (HumanMessage(content=pair[0]), AIMessage(content=pair[1]))]
@@ -189,26 +188,22 @@ def options():
     response.headers.add("Access-Control-Allow-Headers", "Content-Type")
     return response, 200
 
-# Flask API Route for handling both JSON and raw string input
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
-        # Get raw data as text
         raw_data = request.data.decode("utf-8").strip()
-
         if not raw_data:
-            return jsonify({"error": "No input provided"}), 400
-
+            return "No input provided", 400
+        
         print(f"User input: {raw_data}")
-
-        # Placeholder for LangChain response
         response = chain.invoke({"question": raw_data})
-
-        return jsonify({"user_input": raw_data, "response": response})
+        
+        formatted_response = f"\nResponse:\n{response}"
+        return formatted_response, 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500  # Return an error if something goes wrong
+        return f"Error: {str(e)}", 500
 
 if __name__ == "__main__":
-    print("Flask app is starting...")  # Health check message
+    print("Flask app is starting...")
     app.run(debug=True, host="0.0.0.0", port=3000)
