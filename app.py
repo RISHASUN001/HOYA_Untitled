@@ -150,6 +150,7 @@ def structured_retriever(question: str) -> str:
 
 def retriever(question: str):
     structured_data = structured_retriever(question)
+    unstructured_data = [el.page_content for el in vector_index.similarity_search(question)]
     return f"Structured data:\n{structured_data}\nUnstructured data:\n{'#Document'.join(unstructured_data)}"
 
 
