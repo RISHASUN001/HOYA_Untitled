@@ -192,6 +192,7 @@ def options():
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
+        # Get raw data as text
         raw_data = request.data.decode("utf-8").strip()
 
         if not raw_data:
@@ -199,17 +200,14 @@ def chatbot():
 
         print(f"User input: {raw_data}")
 
-        # Invoke the full retrieval and response generation chain
+        # Placeholder for LangChain response
         response = chain.invoke({"question": raw_data})
 
-        # Ensure the response is properly structured
-        formatted_response = f"Structured Data:\n{response}"
+        return jsonify({"user_input": raw_data, "response": response})
 
-        return jsonify({"user_input": raw_data, "response": formatted_response})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e)}), 500  # Return an error if something goes wrong
 
-
-if __name__ == "__main__":
+if name == "__main__":
     print("Flask app is starting...")  # Health check message
-    app.run(debug=True, host="0.0.0.0", port=3000)
+    app.run (https://app.run/)(debug=True, host="0.0.0.0 (https://0.0.0.0/)", port=3000)
