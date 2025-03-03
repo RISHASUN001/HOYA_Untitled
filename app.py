@@ -150,7 +150,7 @@ def structured_retriever(question: str) -> str:
 
 def retriever(question: str):
     structured_data = structured_retriever(question)
-    return f"Structured Data:\n{structured_data}"
+    return f"Structured data:\n{structured_data}\nUnstructured data:\n{'#Document'.join(unstructured_data)}"
 
 
 def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
