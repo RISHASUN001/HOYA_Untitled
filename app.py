@@ -54,12 +54,12 @@ chunked_documents = text_splitter.split_documents(all_documents)
 client = openai.AzureOpenAI(
     api_key=api_key,
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
 )
 
 # Initialize LLM and Neo4j Graph
 llm = AzureChatOpenAI(
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     api_key=os.getenv("AZURE_OPENAI_APIKEY"),
     azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
