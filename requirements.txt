@@ -25,3 +25,4 @@ fuzzywuzzy
 python-Levenshtein
 pypdf
 flask-cors
+json-repair

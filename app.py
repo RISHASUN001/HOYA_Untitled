@@ -21,6 +21,7 @@ from langchain_community.vectorstores import Neo4jVector
 from langchain_openai import AzureOpenAIEmbeddings
 from pydantic import BaseModel, Field
 
+
 # Load environment variables
 load_dotenv(override=True)
 
@@ -66,18 +67,19 @@ llm = AzureChatOpenAI(
     temperature=0
 )
 
-NEO4J_URI="neo4j+s://6f619797.databases.neo4j.io"
+# Neo4j configurations
+SECONDARY_NEO4J_URI = "neo4j+s://495232c8.databases.neo4j.io"
+PRIMARY_NEO4J_URI = "neo4j+s://771eef14.databases.neo4j.io"
 NEO4J_USERNAME="neo4j"
-NEO4J_PASSWORD="loVyer5cvr7MO2MXwob-k7GFq18Bu2iYSoTzxHCR_2A"
+SECONDARY_NEO4J_PASSWORD="fwVyXeBgxH_vnFyQz0t9zx1srgTFELQz2_Szf1dyuGA"
+PRIMARY_NEO4J_PASSWORD="XB0t7KZlTx56J1AM2nL6zI4Pkx_HIlgZ2tXy3k69qUc"
 
-graph = Neo4jGraph(
-    url=NEO4J_URI,
-    username=NEO4J_USERNAME,
-    password=NEO4J_PASSWORD
-)
+# Initialize primary and secondary graphs
+primary_graph = Neo4jGraph(url=PRIMARY_NEO4J_URI, username=NEO4J_USERNAME, password=PRIMARY_NEO4J_PASSWORD)
+secondary_graph = Neo4jGraph(url=SECONDARY_NEO4J_URI, username=NEO4J_USERNAME, password=SECONDARY_NEO4J_PASSWORD)
 
 # Ensure index exists in Neo4j
-graph.query("CREATE FULLTEXT INDEX entity IF NOT EXISTS FOR (e:Entity) ON EACH [e.id]")
+primary_graph.query("CREATE FULLTEXT INDEX entity IF NOT EXISTS FOR (e:Entity) ON EACH [e.id]")
 
 # Set up text embeddings
 text_embedding = AzureOpenAIEmbeddings(
@@ -93,10 +95,11 @@ vector_index = Neo4jVector.from_existing_graph(
     node_label="Document",
     text_node_properties=["text"],
     embedding_node_property="embedding",
-    url=NEO4J_URI,
+    url=PRIMARY_NEO4J_URI,
     username=NEO4J_USERNAME,
-    password=NEO4J_PASSWORD
+    password=PRIMARY_NEO4J_PASSWORD
 )
+
 
 # Define entity extraction class
 class Entities(BaseModel):
@@ -121,7 +124,7 @@ def structured_retriever(question: str) -> str:
         return "No entities found in the question."
 
     for entity in entities.names:
-        response = graph.query(
+        response = primary_graph.query(
             """
             CALL db.index.fulltext.queryNodes('entity', $query, {limit:2})
             YIELD node, score
@@ -212,3 +215,13 @@ def chatbot():
 if __name__ == "__main__":
     print("Flask app is starting...")  # Health check message
     app.run(debug=True, host="0.0.0.0", port=3000)
+
+# Route for rebuilding the Neo4j graph
+@app.route("/rebuild-graph", methods=["POST"])
+def rebuild_graph_route():
+    try:
+        from drive_monitor import rebuild_graph
+        rebuild_graph()
+        return jsonify({"message": "Neo4j graph rebuilt successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
