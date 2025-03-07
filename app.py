@@ -33,11 +33,13 @@ api_key = os.getenv("AZURE_OPENAI_APIKEY")
 if not api_key:
     raise ValueError("Missing AZURE_OPENAI_APIKEY. Ensure it's set in your environment.")
 
-# Load PDFs
+# Load PDFs and Text Files
 pdf_folder = "downloaded_files/"
 pdf_files = [os.path.join(pdf_folder, file) for file in os.listdir(pdf_folder) if file.endswith(".pdf")]
+txt_files = [os.path.join(pdf_folder, file) for file in os.listdir(pdf_folder) if file.endswith(".txt")]
 all_documents = []
 
+# Load PDF Documents
 for pdf in pdf_files:
     try:
         loader = PyPDFLoader(pdf)
@@ -45,6 +47,16 @@ for pdf in pdf_files:
         print(f"Loaded PDF: {pdf}")
     except Exception as e:
         print(f"Error loading {pdf}: {e}")
+
+# Load TXT Documents
+for txt in txt_files:
+    try:
+        with open(txt, "r", encoding="utf-8") as file:
+            content = file.read()
+            all_documents.append({"page_content": content, "metadata": {"source": txt}})
+        print(f"Loaded TXT: {txt}")
+    except Exception as e:
+        print(f"Error loading {txt}: {e}")
 
 # Split Documents
 text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=400)
