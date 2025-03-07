@@ -47,7 +47,6 @@ flask-cors
 Flask
 flask-cors
 python-dotenv
-sqlite3
 openai
 langchain
 langchain-community
