@@ -1,48 +1,38 @@
 import os
-import sqlite3
-import warnings
-from dotenv import load_dotenv
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
-from langchain_community.vectorstores import Neo4jVector
-from langchain_community.graphs import Neo4jGraph
-import openai
-import warnings
-warnings.filterwarnings("ignore")
-import os
-from dotenv import load_dotenv
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import CharacterTextSplitter
-import openai
-from langchain.llms import AzureOpenAI
-from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage
-from langchain_experimental.graph_transformers import LLMGraphTransformer
-from langchain_community.graphs import Neo4jGraph
-from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnableParallel, RunnablePassthrough
-from typing import List, Tuple
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_community.vectorstores import Neo4jVector
-from langchain_openai import AzureOpenAIEmbeddings
-from pydantic import BaseModel, Field
-import os
-from typing import List, Tuple
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnablePassthrough
-from langchain_openai import AzureChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.prompts.prompt import PromptTemplate
-from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 import logging
-#Risha
+import warnings
+from typing import List, Tuple
+
+from dotenv import load_dotenv
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from pydantic import BaseModel, Field
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+
+# LangChain Core
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnableParallel, RunnablePassthrough
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+# LangChain Community
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import Neo4jVector
+from langchain_community.graphs import Neo4jGraph
+from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
+
+# LangChain OpenAI
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+
+# LangChain Experimental
+from langchain_experimental.graph_transformers import LLMGraphTransformer
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Load environment variables
+load_dotenv(override=True)
 NEO4J_URI="neo4j+s://6f619797.databases.neo4j.io"
 NEO4J_USERNAME="neo4j"
 NEO4J_PASSWORD="loVyer5cvr7MO2MXwob-k7GFq18Bu2iYSoTzxHCR_2A"
