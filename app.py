@@ -20,6 +20,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.vectorstores import Neo4jVector
 from langchain_openai import AzureOpenAIEmbeddings
 from pydantic import BaseModel, Field
+from langchain_core.documents import Document
+
 
 # Load environment variables
 load_dotenv(override=True)
@@ -39,11 +41,16 @@ pdf_files = [os.path.join(pdf_folder, file) for file in os.listdir(pdf_folder) i
 txt_files = [os.path.join(pdf_folder, file) for file in os.listdir(pdf_folder) if file.endswith(".txt")]
 all_documents = []
 
+# Initialize the list to hold all documents
+all_documents = []
+
 # Load PDF Documents
 for pdf in pdf_files:
     try:
+        # Load the PDF in a PDF-specific manner
         loader = PyPDFLoader(pdf)
-        all_documents.extend(loader.load())
+        pdf_documents = loader.load()
+        all_documents.extend(pdf_documents)
         print(f"Loaded PDF: {pdf}")
     except Exception as e:
         print(f"Error loading {pdf}: {e}")
@@ -53,14 +60,35 @@ for txt in txt_files:
     try:
         with open(txt, "r", encoding="utf-8") as file:
             content = file.read()
-            all_documents.append({"page_content": content, "metadata": {"source": txt}})
-        print(f"Loaded TXT: {txt}")
+            txt_document = Document(page_content=content, metadata={"source": txt})
+            all_documents.append(txt_document)
     except Exception as e:
         print(f"Error loading {txt}: {e}")
 
-# Split Documents
+# Split PDF Documents first
+pdf_documents = [doc for doc in all_documents if isinstance(doc, Document) and doc.metadata.get('source', '').endswith('.pdf')]
+txt_documents = [doc for doc in all_documents if isinstance(doc, Document) and doc.metadata.get('source', '').endswith('.txt')]
+
+
+# Use CharacterTextSplitter for chunking PDFs and TXT files separately
 text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=400)
-chunked_documents = text_splitter.split_documents(all_documents)
+
+# Split PDFs first
+pdf_chunked_documents = []
+for doc in pdf_documents:
+    pdf_chunked_documents.extend(text_splitter.split_documents([doc]))
+
+# Split TXT files
+txt_chunked_documents = []
+for doc in txt_documents:
+    txt_chunked_documents.extend(text_splitter.split_documents([doc]))
+
+# Combine chunked PDFs and TXT documents
+chunked_documents = pdf_chunked_documents + txt_chunked_documents
+
+# Now, `chunked_documents` contains all the chunked data from both PDFs and TXT files
+
+
 
 # Azure OpenAI Client
 client = openai.AzureOpenAI(
