@@ -1,6 +1,15 @@
+import os
+import sqlite3
+import warnings
+from dotenv import load_dotenv
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_community.vectorstores import Neo4jVector
+from langchain_community.graphs import Neo4jGraph
+import openai
 import warnings
 warnings.filterwarnings("ignore")
-
 import os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -20,107 +29,78 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.vectorstores import Neo4jVector
 from langchain_openai import AzureOpenAIEmbeddings
 from pydantic import BaseModel, Field
-from langchain_core.documents import Document
-
-
-# Load environment variables
-load_dotenv(override=True)
-
-# Flask App Setup
-app = Flask(__name__)
-CORS(app)
-
-# API Key & Environment Checks
-api_key = os.getenv("AZURE_OPENAI_APIKEY")
-if not api_key:
-    raise ValueError("Missing AZURE_OPENAI_APIKEY. Ensure it's set in your environment.")
-
-# Load PDFs and Text Files
-pdf_folder = "downloaded_files/"
-pdf_files = [os.path.join(pdf_folder, file) for file in os.listdir(pdf_folder) if file.endswith(".pdf")]
-txt_files = [os.path.join(pdf_folder, file) for file in os.listdir(pdf_folder) if file.endswith(".txt")]
-all_documents = []
-
-# Initialize the list to hold all documents
-all_documents = []
-
-# Load PDF Documents
-for pdf in pdf_files:
-    try:
-        # Load the PDF in a PDF-specific manner
-        loader = PyPDFLoader(pdf)
-        pdf_documents = loader.load()
-        all_documents.extend(pdf_documents)
-        print(f"Loaded PDF: {pdf}")
-    except Exception as e:
-        print(f"Error loading {pdf}: {e}")
-
-# Load TXT Documents
-for txt in txt_files:
-    try:
-        with open(txt, "r", encoding="utf-8") as file:
-            content = file.read()
-            txt_document = Document(page_content=content, metadata={"source": txt})
-            all_documents.append(txt_document)
-    except Exception as e:
-        print(f"Error loading {txt}: {e}")
-
-# Split PDF Documents first
-pdf_documents = [doc for doc in all_documents if isinstance(doc, Document) and doc.metadata.get('source', '').endswith('.pdf')]
-txt_documents = [doc for doc in all_documents if isinstance(doc, Document) and doc.metadata.get('source', '').endswith('.txt')]
-
-
-# Use CharacterTextSplitter for chunking PDFs and TXT files separately
-text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=400)
-
-# Split PDFs first
-pdf_chunked_documents = []
-for doc in pdf_documents:
-    pdf_chunked_documents.extend(text_splitter.split_documents([doc]))
-
-# Split TXT files
-txt_chunked_documents = []
-for doc in txt_documents:
-    txt_chunked_documents.extend(text_splitter.split_documents([doc]))
-
-# Combine chunked PDFs and TXT documents
-chunked_documents = pdf_chunked_documents + txt_chunked_documents
-
-# Now, `chunked_documents` contains all the chunked data from both PDFs and TXT files
-
-
-
-# Azure OpenAI Client
-client = openai.AzureOpenAI(
-    api_key=api_key,
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
-)
-
-# Initialize LLM and Neo4j Graph
-llm = AzureChatOpenAI(
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_key=os.getenv("AZURE_OPENAI_APIKEY"),
-    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-    temperature=0
-)
-
+import os
+from typing import List, Tuple
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnablePassthrough
+from langchain_openai import AzureChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts.prompt import PromptTemplate
+from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import logging
+#Risha
 NEO4J_URI="neo4j+s://6f619797.databases.neo4j.io"
 NEO4J_USERNAME="neo4j"
 NEO4J_PASSWORD="loVyer5cvr7MO2MXwob-k7GFq18Bu2iYSoTzxHCR_2A"
 
-graph = Neo4jGraph(
-    url=NEO4J_URI,
-    username=NEO4J_USERNAME,
-    password=NEO4J_PASSWORD
+# NEO4J_URI="neo4j+s://771eef14.databases.neo4j.io"
+# NEO4J_USERNAME="neo4j"
+# NEO4J_PASSWORD="XB0t7KZlTx56J1AM2nL6zI4Pkx_HIlgZ2tXy3k69qUc"
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+# Load environment variables
+load_dotenv(override=True)
+
+# Flask Setup
+app = Flask(__name__)
+CORS(app)
+
+# Replace sqlite3 with psycopg2
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+# Database Setup
+DATABASE_URL = os.getenv("DATABASE_URL")  # Get from environment variables
+
+def init_db():
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS faq (
+                        id SERIAL PRIMARY KEY,
+                        question TEXT NOT NULL,
+                        answer TEXT,
+                        status TEXT DEFAULT 'pending'
+                    )
+                """)
+                conn.commit()
+    except Exception as e:
+        logging.error(f"Error initializing database: {e}")
+
+init_db()
+
+### changes made starting from here
+
+
+
+llm = AzureChatOpenAI(
+    openai_api_version=os.environ['AZURE_OPENAI_API_VERSION'],
+    azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
+    api_key=os.environ['AZURE_OPENAI_APIKEY'],
+    azure_deployment=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
+    temperature=0
 )
 
-# Ensure index exists in Neo4j
-graph.query("CREATE FULLTEXT INDEX entity IF NOT EXISTS FOR (e:Entity) ON EACH [e.id]")
+graph = Neo4jGraph(NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD)
 
-# Set up text embeddings
-text_embedding = AzureOpenAIEmbeddings(
+# Setting up text embeddings
+text_embedding =  AzureOpenAIEmbeddings(
     azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
     api_key=os.environ['AZURE_OPENAI_APIKEY'],
     azure_deployment=os.environ["AZURE_EMBEDDING_DEPLOYMENT_NAME"],
@@ -128,121 +108,251 @@ text_embedding = AzureOpenAIEmbeddings(
 )
 
 vector_index = Neo4jVector.from_existing_graph(
-    text_embedding,
-    search_type="hybrid",
+    text_embedding,  
+    search_type="hybrid", #i.e search is done on keywords as well as the embedding
     node_label="Document",
     text_node_properties=["text"],
     embedding_node_property="embedding",
-    url=NEO4J_URI,
-    username=NEO4J_USERNAME,
+    url=NEO4J_URI,  
+    username=NEO4J_USERNAME,  
     password=NEO4J_PASSWORD
 )
 
-# Define entity extraction class
+graph.query("CREATE FULLTEXT INDEX entity IF NOT EXISTS FOR (e:__Entity__) ON EACH [e.id]")
+
+# Extract entities from text
 class Entities(BaseModel):
-    names: List[str] = Field(..., description="All person, organization, or business entities in the text.")
+    """Identifying information about entities."""
+
+    names: List[str] = Field(
+        ...,
+        description="All the person, organization, or business entities that appear in the text.",
+    )
 
 # Define HR-specific assistant behavior
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an HR assistant for Hoya Electronics. Provide concise answers using knowledge graphs and documents. Escalate if unsure."),
-    ("human", "Employee question: {question}"),
-])
+prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are an HR assistant for Hoya Electronics. Your job is to provide "
+            "clear and concise answers based on data stored "
+            "in a knowledge graph and a document database. If there is no relevant information, "
+            "always respond with: 'No relevant information available. Escalating to HR.' Do not guess."
+            "Do not try and format the response when there is no relevant information. Directly respond with : 'No relevant information available. Escalating to HR.' "
+        ),
+        (
+            "human",
+            "Employee question: {question}",
+        ),
+    ]
+)
+
 
 entity_chain = prompt | llm.with_structured_output(Entities)
 
+     
 def generate_full_text_query(input: str) -> str:
-    words = [word for word in input.split() if word]
-    return " AND ".join([f"{word}~2" for word in words])
+    full_text_query = ""
+    words = [el for el in remove_lucene_chars(input).split() if el]
+    for word in words[:-1]:
+        full_text_query += f" {word}~2 AND"
+    full_text_query += f" {words[-1]}~2"
+    return full_text_query.strip()
 
+# Fulltext index query
 def structured_retriever(question: str) -> str:
     result = ""
     entities = entity_chain.invoke({"question": question})
+    
+    # Ensure that entities.names is not empty or None
     if not hasattr(entities, 'names') or not entities.names:
         return "No entities found in the question."
 
     for entity in entities.names:
         response = graph.query(
-            """
-            CALL db.index.fulltext.queryNodes('entity', $query, {limit:2})
+            """CALL db.index.fulltext.queryNodes('entity', $query, {limit:2})
             YIELD node, score
-            WITH node
+            WITH node, score  // Ensure that node and score are available to the subquery
             CALL {
-                WITH node
-                MATCH (node)-[r:MENTIONS]->(neighbor)
-                RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
-                UNION ALL
-                WITH node
-                MATCH (node)<-[r:MENTIONS]-(neighbor)
-                RETURN neighbor.id + ' - ' + type(r) + ' -> ' + node.id AS output
+            WITH node  // Pass the node variable into the subquery
+            MATCH (node)-[r:!MENTIONS]->(neighbor)
+            RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
+            UNION ALL
+            WITH node  // Pass the node variable into the next part of the subquery
+            MATCH (node)<-[r:!MENTIONS]-(neighbor)
+            RETURN neighbor.id + ' - ' + type(r) + ' -> ' + node.id AS output
             }
             RETURN output
             LIMIT 50
             """,
-            {"query": generate_full_text_query(entity)}
+            {"query": generate_full_text_query(entity)},
         )
-        result += "\n" + (
-            "\n".join([el["output"] for el in response if el["output"] is not None]) 
-            if response 
-            else f"No relevant information found for entity: {entity}."
-        )
+
+        # Handle case if response is empty or doesn't contain 'output'
+        if not response:
+            result += f"\nNo relevant information found for entity: {entity}."
+        else:
+            for el in response:
+                if 'output' in el and el['output']:
+                    result += "\n" + el['output']
+                else:
+                    result += "\nNo output found for this entity."
 
     return result
 
+
+SIMILARITY_THRESHOLD = 0.7  # Adjust based on experimentation
+
 def retriever(question: str):
+    print(f"Search query: {question}")
+    
+    # Handle structured retrieval
     structured_data = structured_retriever(question)
-    unstructured_data = [el.page_content for el in vector_index.similarity_search(question)]
-    return f"Structured data:\n{structured_data}\n\nUnstructured data:\n{'#Document'.join(unstructured_data)}"
+    print(f"Structured data retrieved: {structured_data}")
+    
+    # Handle unstructured data retrieval (from vector index)
+    retrieved_docs = vector_index.similarity_search_with_score(question, k=5)  # Retrieve top 5 similar chunks
+    
+    # Extract content and similarity scores
+    unstructured_data = []
+    for doc, score in retrieved_docs:
+        print(f"Retrieved: {doc.page_content} with score {score}")
+        if score >= SIMILARITY_THRESHOLD:  # Keep only relevant chunks
+            unstructured_data.append(doc.page_content)
 
-def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
-    return [msg for pair in chat_history for msg in (HumanMessage(content=pair[0]), AIMessage(content=pair[1]))]
+    # Check if both structured and unstructured data are empty
+    if (
+        (not structured_data.strip() or "No relevant information" in structured_data)
+        and not unstructured_data
+    ):
+        return "No relevant information available."
 
-# Define search query pipeline
-_search_query = RunnableBranch(
-    (RunnableLambda(lambda x: bool(x.get("chat_history"))), 
-     RunnablePassthrough.assign(chat_history=lambda x: _format_chat_history(x["chat_history"])) 
-     | ChatPromptTemplate.from_messages([
-         ("system", "You refine follow-up questions based on chat history."),
-         ("human", "Given the conversation history:\n\n{chat_history}\n\nHow would you rewrite this question?")
-     ]) | llm | StrOutputParser()),
-    RunnableLambda(lambda x: x["question"])
+    # Combine and format the final response
+    final_data = f"""Structured data:
+    {structured_data}
+    Unstructured data:
+    {"#Document ".join(unstructured_data)}
+    """
+    return final_data
+
+
+_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question,
+in its original language.
+Chat History:
+{chat_history}
+Follow Up Input: {question}
+Standalone question:"""
+
+CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+
+from langchain_core.runnables import (
+    RunnableBranch,
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
 )
 
-# Define answer retrieval chain
-prompt = ChatPromptTemplate.from_template("""
-    Answer the question based only on the following context:
-    {context}\n\nQuestion: {question}\nUse natural language and be concise.\nAnswer:""")
 
-chain = RunnableParallel({"context": _search_query | retriever, "question": RunnablePassthrough()}) | prompt | llm | StrOutputParser()
+## Azure OpenAI chat model
+chat_model = AzureChatOpenAI(
+    api_key=os.getenv("AZURE_OPENAI_APIKEY"),
+    model_kwargs={"api_base": os.getenv("AZURE_OPENAI_ENDPOINT")},
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+    deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini"),
+    temperature=0
+)
 
-# Route for checking if the API is running
-@app.route('/', methods=['GET'])
-def home():
-    return "Flask API is running!", 200
+api_key = os.getenv("AZURE_OPENAI_APIKEY")
+api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
+api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
 
-# Handle OPTIONS requests for CORS preflight
-@app.route('/', methods=['OPTIONS'])
-def options():
-    response = jsonify({})
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type")
-    return response, 200
+# Format chat history for context retention
+def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
+    buffer = []
+    for human, ai in chat_history:
+        buffer.append(HumanMessage(content=human))
+        buffer.append(AIMessage(content=ai))
+    return buffer
 
+# Define the condense question prompt
+CONDENSE_QUESTION_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are an assistant that refines follow-up questions based on chat history."),
+        ("human", "Given the conversation history:\n\n{chat_history}\n\nHow would you rewrite this question?"),
+    ]
+)
+
+# Search query pipeline
+_search_query = RunnableBranch(
+    # If input includes chat_history, condense follow-up question
+    (
+        RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
+            run_name="HasChatHistoryCheck"
+        ),
+        RunnablePassthrough.assign(
+            chat_history=lambda x: _format_chat_history(x["chat_history"])
+        )
+        | CONDENSE_QUESTION_PROMPT
+        | chat_model
+        | StrOutputParser(),
+    ),
+    # Else, just pass through the question
+    RunnableLambda(lambda x: x["question"]),
+)
+
+template = """Answer the question based only on the following context:
+{context}
+
+Question: {question}
+
+Use natural language and be concise.
+
+If the context does not contain relevant information or is empty, always respond with: "No relevant information found."
+
+Answer:"""
+
+
+
+prompt = ChatPromptTemplate.from_template(template)    
+
+chain = (
+    RunnableParallel(
+        {
+            "context": _search_query | retriever,
+            "question": RunnablePassthrough(),
+        }
+    )
+    | prompt
+    | llm
+    | StrOutputParser()
+)  
+
+
+# Update the /chatbot route
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
         raw_data = request.data.decode("utf-8").strip()
         if not raw_data:
-            return "No input provided", 400
+            return jsonify({"message": "No input provided"}), 400
         
-        print(f"User input: {raw_data}")
-        response = chain.invoke({"question": raw_data})
+        # Ensure the input is passed as a dictionary
+        result = chain.invoke({"question": raw_data})
+
+        if result and result.strip() and "relevant information" not in result:
+            return jsonify({"answer": result}), 200  
         
-        return response, 200
+        # If no relevant answer is found (retriever returned None), log to HR FAQ DB
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("INSERT INTO faq (question) VALUES (%s)", (raw_data,))
+                conn.commit()
+
+        return jsonify({"message": "No answer found. Escalating to HR."}), 202  
 
     except Exception as e:
-        return f"Error: {str(e)}", 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    print("Flask app is starting...")
-    app.run(debug=True, host="0.0.0.0", port=3000)
+    app.run(debug=True, host="0.0.0.0", port=5001)
