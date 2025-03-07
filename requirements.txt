@@ -17,5 +17,4 @@ scikit-learn
 numpy
 psycopg2-binary
 pydantic
-sklearn
-cosine_similarity
+
