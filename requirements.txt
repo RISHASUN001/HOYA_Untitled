@@ -25,3 +25,16 @@ fuzzywuzzy
 python-Levenshtein
 pypdf
 flask-cors
+Flask
+flask-cors
+python-dotenv
+sqlite3
+openai
+langchain
+langchain-community
+langchain-openai
+langchain-experimental
+pydantic
+numpy
+scikit-learn
+neo4j
