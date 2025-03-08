@@ -215,7 +215,7 @@ def retriever(question: str):
         (not structured_data.strip() or "No relevant information" in structured_data)
         and not unstructured_data
     ):
-        return "No relevant information available."
+        return None  # Return None if no relevant information is found
 
     # Combine and format the final response
     final_data = f"""Structured data:
@@ -343,10 +343,11 @@ def chatbot():
         # Ensure the input is passed as a dictionary
         result = chain.invoke({"question": raw_data})
 
-        if result and result.strip() and "relevant information" not in result:
+        # Check if the result contains relevant information
+        if result and result.strip() and "No relevant information" not in result:
             return jsonify({"answer": result}), 200  
         
-        # If no relevant answer is found (retriever returned None), log to HR FAQ DB
+        # If no relevant answer is found, log to HR FAQ DB
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("INSERT INTO faq (question) VALUES (%s)", (raw_data,))
@@ -355,7 +356,8 @@ def chatbot():
         return jsonify({"message": "No answer found. Escalating to HR."}), 202  
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Error in chatbot route: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)
