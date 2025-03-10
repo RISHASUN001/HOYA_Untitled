@@ -575,29 +575,46 @@ def monitor_folder():
 
 
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(name)
+
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
+        logger.info("Received a request to the chatbot endpoint.")
+
         # Parse the JSON payload
         data = request.get_json()
         if not data:
+            logger.error("No JSON payload provided.")
             return jsonify({"error": "No JSON payload provided"}), 400
 
-        # Extract poster description and question from the JSON payload
+        # Extract poster description and question
         poster_description = data.get("poster_description", "")
         question = data.get("question", "")
+        if not question:
+            logger.error("Question is required.")
+            return jsonify({"error": "Question is required"}), 400
 
-        # Combine poster description and question (if poster description is provided)
-        if poster_description:
-            combined_input = f"Poster Description: {poster_description}\nQuestion: {question}"
-        else:
-            combined_input = question
+        # Combine poster description and question
+        combined_input = f"Poster Description: {poster_description}\nQuestion: {question}" if poster_description else question
+        logger.info(f"Combined input: {combined_input}")
 
         # Retrieve chat history
         chat_history = _format_chat_history()
+        if not chat_history:
+            logger.info("No chat history found. Using empty history.")
+            chat_history = []
 
         # Pass the combined input to the chatbot
-        result = chain.invoke({"question": combined_input, "chat_history": chat_history})
+        try:
+            logger.info("Invoking the chain with the combined input.")
+            result = chain.invoke({"question": combined_input, "chat_history": chat_history})
+            logger.info(f"Chain invocation result: {result}")
+        except Exception as e:
+            logger.error(f"Error in chain.invoke: {e}")
+            return jsonify({"error": "Failed to process the question"}), 500
 
         if result and result.strip() and "relevant information" not in result:
             # Update session history
@@ -605,17 +622,25 @@ def chatbot():
             history.append((combined_input, result))
             session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]  # Keep only the last few messages
 
+            logger.info("Returning a successful response.")
             return jsonify({"answer": result}), 200
 
         # If no relevant answer is found, log to HR FAQ DB
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
-                conn.commit()
+        try:
+            logger.info("No relevant answer found. Logging question to HR FAQ DB.")
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
+                    conn.commit()
+        except Exception as e:
+            logger.error(f"Database error: {e}")
+            return jsonify({"error": "Failed to log question to database"}), 500
 
+        logger.info("No answer found. Escalating to HR.")
         return jsonify({"message": "No answer found. Escalating to HR."}), 202
 
     except Exception as e:
+        logger.error(f"Unexpected error: {e}")
         return jsonify({"error": str(e)}), 500
         
 if __name__ == "__main__":
