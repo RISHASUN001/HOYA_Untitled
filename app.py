@@ -1,6 +1,15 @@
+import os
+import sqlite3
+import warnings
+from dotenv import load_dotenv
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_community.vectorstores import Neo4jVector
+from langchain_community.graphs import Neo4jGraph
+import openai
 import warnings
 warnings.filterwarnings("ignore")
-
 import os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -20,67 +29,105 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.vectorstores import Neo4jVector
 from langchain_openai import AzureOpenAIEmbeddings
 from pydantic import BaseModel, Field
+import os
+from typing import List, Tuple
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnablePassthrough
+from langchain_openai import AzureChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts.prompt import PromptTemplate
+from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import logging
+from flask import Flask, request, jsonify, session
+from flask_cors import CORS
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import os
+import logging
+from langchain_core.runnables import RunnablePassthrough
+from langchain.schema import AIMessage, HumanMessage
+import os
+import time
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from dotenv import load_dotenv
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.vectorstores import Neo4jVector
+from langchain_experimental.graph_transformers import LLMGraphTransformer
+from langchain_openai import AzureChatOpenAI
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage  
+from langchain_community.graphs import Neo4jGraph
+from langchain_openai import AzureOpenAIEmbeddings
+import threading
+from flask import Flask
 
 # Load environment variables
 load_dotenv(override=True)
 
-# Flask App Setup
+# Neo4j configurations
+
+
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey")  # Needed for session
 CORS(app)
 
-# API Key & Environment Checks
-api_key = os.getenv("AZURE_OPENAI_APIKEY")
-if not api_key:
-    raise ValueError("Missing AZURE_OPENAI_APIKEY. Ensure it's set in your environment.")
+SECONDARY_NEO4J_URI = "neo4j+s://495232c8.databases.neo4j.io"
+PRIMARY_NEO4J_URI = "neo4j+s://9eb697a7.databases.neo4j.io"
+NEO4J_USERNAME="neo4j"
+SECONDARY_NEO4J_PASSWORD="fwVyXeBgxH_vnFyQz0t9zx1srgTFELQz2_Szf1dyuGA"
+PRIMARY_NEO4J_PASSWORD="xtQyfqUiVRnGFcQgofngfX-g0LKnIs2X67SBmO1Qm7M"
 
-# Load PDFs
-pdf_folder = "downloaded_files/"
-pdf_files = [os.path.join(pdf_folder, file) for file in os.listdir(pdf_folder) if file.endswith(".pdf")]
-all_documents = []
+# Initialize primary and secondary graphs
+primary_graph = Neo4jGraph(url=PRIMARY_NEO4J_URI, username=NEO4J_USERNAME, password=PRIMARY_NEO4J_PASSWORD)
+secondary_graph = Neo4jGraph(url=SECONDARY_NEO4J_URI, username=NEO4J_USERNAME, password=SECONDARY_NEO4J_PASSWORD)
 
-for pdf in pdf_files:
+# Replace sqlite3 with psycopg2
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+# Database Setup
+DATABASE_URL = os.getenv("DATABASE_URL")  # Get from environment variables
+
+def init_db():
     try:
-        loader = PyPDFLoader(pdf)
-        all_documents.extend(loader.load())
-        print(f"Loaded PDF: {pdf}")
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS faq (
+                        id SERIAL PRIMARY KEY,
+                        question TEXT NOT NULL,
+                        answer TEXT,
+                        status TEXT DEFAULT 'pending'
+                    )
+                """)
+                conn.commit()
     except Exception as e:
-        print(f"Error loading {pdf}: {e}")
+        logging.error(f"Error initializing database: {e}")
 
-# Split Documents
-text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=400)
-chunked_documents = text_splitter.split_documents(all_documents)
+init_db()
 
-# Azure OpenAI Client
-client = openai.AzureOpenAI(
-    api_key=api_key,
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
-)
+### changes made starting from here
 
-# Initialize LLM and Neo4j Graph
+chat_history = {}
+
 llm = AzureChatOpenAI(
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_key=os.getenv("AZURE_OPENAI_APIKEY"),
-    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+    openai_api_version=os.environ['AZURE_OPENAI_API_VERSION'],
+    azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
+    api_key=os.environ['AZURE_OPENAI_APIKEY'],
+    azure_deployment=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
     temperature=0
 )
 
-NEO4J_URI="neo4j+s://6f619797.databases.neo4j.io"
-NEO4J_USERNAME="neo4j"
-NEO4J_PASSWORD="loVyer5cvr7MO2MXwob-k7GFq18Bu2iYSoTzxHCR_2A"
 
-graph = Neo4jGraph(
-    url=NEO4J_URI,
-    username=NEO4J_USERNAME,
-    password=NEO4J_PASSWORD
-)
 
-# Ensure index exists in Neo4j
-graph.query("CREATE FULLTEXT INDEX entity IF NOT EXISTS FOR (e:Entity) ON EACH [e.id]")
-
-# Set up text embeddings
-text_embedding = AzureOpenAIEmbeddings(
+# Setting up text embeddings
+text_embedding =  AzureOpenAIEmbeddings(
     azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
     api_key=os.environ['AZURE_OPENAI_APIKEY'],
     azure_deployment=os.environ["AZURE_EMBEDDING_DEPLOYMENT_NAME"],
@@ -88,116 +135,499 @@ text_embedding = AzureOpenAIEmbeddings(
 )
 
 vector_index = Neo4jVector.from_existing_graph(
-    text_embedding,
-    search_type="hybrid",
+    text_embedding,  
+    search_type="hybrid", #i.e search is done on keywords as well as the embedding
     node_label="Document",
     text_node_properties=["text"],
     embedding_node_property="embedding",
-    url=NEO4J_URI,
-    username=NEO4J_USERNAME,
-    password=NEO4J_PASSWORD
+    url=PRIMARY_NEO4J_URI,  
+    username=NEO4J_USERNAME,  
+    password=PRIMARY_NEO4J_PASSWORD
 )
 
-# Define entity extraction class
+
+
+
 class Entities(BaseModel):
-    names: List[str] = Field(..., description="All person, organization, or business entities in the text.")
+    """Identifying information about entities in the query."""
+
+    names: List[str] = Field(
+        ...,
+        description="Extract all key entities from the text, including software, applications, services, "
+                    "departments, systems, and business entities. Do not filter out any useful keywords.",
+    )
+
 
 # Define HR-specific assistant behavior
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an HR assistant for Hoya Electronics. Provide concise answers using knowledge graphs and documents. Escalate if unsure."),
-    ("human", "Employee question: {question}"),
-])
+prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are an HR assistant for Hoya Electronics. Your job is to provide "
+            "clear and concise answers based on data stored "
+            "in a knowledge graph and a document database. If there is no relevant information, "
+            "always respond with: 'No relevant information available. Escalating to HR.' Do not guess."
+            "Do not try and format the response when there is no relevant information. Directly respond with : 'No relevant information available. Escalating to HR.' "
+        ),
+        (
+            "human",
+            "Employee question: {question}",
+        ),
+    ]
+)
+
 
 entity_chain = prompt | llm.with_structured_output(Entities)
 
-def generate_full_text_query(input: str) -> str:
-    words = [word for word in input.split() if word]
-    return " AND ".join([f"{word}~2" for word in words])
+from langchain.chat_models import AzureChatOpenAI
+from langchain.schema import HumanMessage
 
-def structured_retriever(poster_description: str, question: str) -> str:
-    combined_query = f"{poster_description} {question}"
+llm_synonym = AzureChatOpenAI(
+    openai_api_version=os.environ['AZURE_OPENAI_API_VERSION'],
+    azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
+    api_key=os.environ['AZURE_OPENAI_APIKEY'],
+    azure_deployment=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
+    temperature=0.3
+)
+
+
+def expand_entity_with_llm(entity: str) -> List[str]:
+    """Use Azure OpenAI to find alternative names for an entity."""
+    prompt = f"""
+    Provide a list of alternative names, synonyms, and variations for the entity: "{entity}". 
+    Keep responses short and return just a list of words or phrases.
+    """
+    
+    response = llm_synonym([HumanMessage(content=prompt)]).content
+    return response.split(", ")
+
+     
+def generate_full_text_query(input: str) -> str:
+    """Generate a Neo4j full-text search query with LLM-generated synonyms."""
+    words = [el for el in remove_lucene_chars(input).split() if el]
+
+    # Get expanded terms from Azure OpenAI
+    expanded_words = set(words)  # Start with original words
+    for word in words:
+        expanded_terms = expand_entity_with_llm(word)
+        expanded_words.update(expanded_terms)
+
+    # Format for Neo4j full-text search
+    return " OR ".join([f"{word}~2" for word in expanded_words])
+
+
+
+# Fulltext index query
+def structured_retriever(question: str, chat_history: List[Tuple[str, str]] = None) -> str:
     result = ""
-    entities = entity_chain.invoke({"question": combined_query})
+
+    # Merge chat history and question
+    if chat_history:
+        history_context = " ".join([f"Q: {q} A: {a}" for q, a in chat_history[-3:]])  
+        context_input = f"Chat history:\n{history_context}\n\nFollow-up question: {question}"
+    else:
+        context_input = question
+
+    entities = entity_chain.invoke({"question": context_input})  
     
     if not hasattr(entities, 'names') or not entities.names:
-        return "No entities found in the input."
+        return "No entities found in the question."
 
     for entity in entities.names:
-        response = graph.query(
-            """
-            CALL db.index.fulltext.queryNodes('entity', $query, {limit:2})
+        query_text = generate_full_text_query(entity)  # Now uses LLM-based expansion
+        
+        response = primary_graph.query(
+            """CALL db.index.fulltext.queryNodes('entity', $query, {limit:5})
             YIELD node, score
-            WITH node
-            CALL {
-                WITH node
-                MATCH (node)-[r:MENTIONS]->(neighbor)
-                RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
-                UNION ALL
-                WITH node
-                MATCH (node)<-[r:MENTIONS]-(neighbor)
-                RETURN neighbor.id + ' - ' + type(r) + ' -> ' + node.id AS output
-            }
-            RETURN output
-            LIMIT 50
+            WHERE score > 0.5  
+            RETURN node.name AS entity_name, score
+            ORDER BY score DESC
+            LIMIT 3
             """,
-            {"query": generate_full_text_query(entity)}
+            {"query": query_text},
         )
-        result += "\n" + (
-            "\n".join([el["output"] for el in response if el["output"] is not None]) 
-            if response 
-            else f"No relevant information found for entity: {entity}."
-        )
+
+        if not response:
+            result += f"\nNo relevant information found for entity: {entity}."
+        else:
+            for el in response:
+                result += f"\nPossible match: {el['entity_name']} (Score: {el['score']:.2f})"
 
     return result
 
-def retriever(poster_description: str, question: str):
-    structured_data = structured_retriever(poster_description, question)
-    unstructured_data = [el.page_content for el in vector_index.similarity_search(f"{poster_description} {question}")]
-    return f"Structured data:\n{structured_data}\n\nUnstructured data:\n{'#Document'.join(unstructured_data)}"
 
-# Define answer retrieval chain
-prompt = ChatPromptTemplate.from_template("""
-    Answer the question based only on the following context:
-    {context}\n\nQuestion: {question}\nUse natural language and be concise.\nAnswer:""")
 
-chain = RunnableParallel({"context": retriever, "question": RunnablePassthrough()}) | prompt | llm | StrOutputParser()
+SIMILARITY_THRESHOLD = 0.7  # Adjust based on experimentation
 
-# Route for checking if the API is running
-@app.route('/', methods=['GET'])
-def home():
-    return "Flask API is running!", 200
+def retriever(question: str):
+    print(f"Search query: {question}")
 
-# Handle OPTIONS requests for CORS preflight
-@app.route('/', methods=['OPTIONS'])
-def options():
-    response = jsonify({})
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type")
-    return response, 200
+    # Retrieve chat history
+    chat_history = session.get("chat_history", [])
+
+    # Structured retrieval using chat history
+    structured_data = structured_retriever(question, chat_history)
+    print(f"Structured data retrieved: {structured_data}")
+
+    # Vector search retrieval (unchanged)
+    retrieved_docs = vector_index.similarity_search_with_score(question, k=5)
+    
+    unstructured_data = []
+    for doc, score in retrieved_docs:
+        print(f"Retrieved: {doc.page_content} with score {score}")
+        if score >= SIMILARITY_THRESHOLD:
+            unstructured_data.append(doc.page_content)
+
+    # Check if both structured and unstructured data are empty
+    if (
+        (not structured_data.strip() or "No relevant information" in structured_data)
+        and not unstructured_data
+    ):
+        return "No relevant information available."
+
+    # Combine and format the final response
+    final_data = f"""Structured data:
+    {structured_data}
+    Unstructured data:
+    {"#Document ".join(unstructured_data)}
+    """
+    return final_data
+
+
+# _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question,
+# in its original language.
+# Chat History:
+# {chat_history}
+# Follow Up Input: {question}
+# Standalone question:"""
+
+# CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+
+from langchain_core.runnables import (
+    RunnableBranch,
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
+)
+
+
+## Azure OpenAI chat model
+chat_model = AzureChatOpenAI(
+    api_key=os.getenv("AZURE_OPENAI_APIKEY"),
+    model_kwargs={"api_base": os.getenv("AZURE_OPENAI_ENDPOINT")},
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+    deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini"),
+    temperature=0
+)
+
+api_key = os.getenv("AZURE_OPENAI_APIKEY")
+api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
+api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
+
+# Store chat history in session
+CHAT_HISTORY_LIMIT = 10  # Limit stored messages
+
+def _format_chat_history():
+    """Format chat history for conversation retention."""
+    history = session.get("chat_history", [])
+    buffer = []
+    for human, ai in history:
+        buffer.append(HumanMessage(content=human))
+        buffer.append(AIMessage(content=ai))
+    return buffer
+    
+
+
+# Define the condense question prompt
+CONDENSE_QUESTION_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are an assistant that refines follow-up questions based on chat history. Focus only on the most recent question and ignore the rest of the chat history unless explicitly referenced."),
+        ("human", "Given the conversation history:\n\n{chat_history}\n\nHow would you rewrite this question to focus only on the most recent question?"),
+    ]
+)
+
+# Search query pipeline
+_search_query = RunnableBranch(
+    (
+        RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
+            run_name="HasChatHistoryCheck"
+        ),
+        RunnablePassthrough.assign(
+            chat_history=lambda x: _format_chat_history(x["chat_history"])
+        )
+        | CONDENSE_QUESTION_PROMPT
+        | chat_model
+        | StrOutputParser(),
+    ),
+    RunnableLambda(lambda x: x["question"]),
+)
+
+template = """Answer the question based only on the following context:
+{context}
+
+Question: {question}
+
+Use natural language and be concise.
+
+If the context does not contain relevant information or is empty, always respond with: "No relevant information found."
+
+Answer:"""
+
+
+
+prompt = ChatPromptTemplate.from_template(template)    
+
+chain = (
+    RunnableParallel(
+        {
+            "context": _search_query | retriever,
+            "question": RunnablePassthrough(),
+        }
+    )
+    | prompt
+    | llm
+    | StrOutputParser()
+)  
+
+# Google Drive API setup
+SCOPES = ['https://www.googleapis.com/auth/drive']
+SERVICE_ACCOUNT_FILE = 'service_account.json'  # Replace with your service account file
+
+credentials = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+drive_service = build('drive', 'v3', credentials=credentials)
+
+# Folder ID to monitor
+FOLDER_ID = os.getenv("FOLDER_ID")
+if not FOLDER_ID:
+    raise ValueError("GOOGLE_DRIVE_FOLDER_ID environment variable is not set.")
+
+# Local directory to store downloaded files
+DOWNLOAD_FOLDER = "downloaded_files"
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+
+# Function to clear the graph
+def clear_graph():
+    driver = secondary_graph._driver  # Define the driver variable
+    with driver.session() as session:
+        session.run("MATCH (n) DETACH DELETE n")
+    print("✅ Graph cleared.")
+    
+def get_folder_state():
+    """Retrieve the current state of the Google Drive folder from Google Drive API, including file names and last modified times."""
+    state = {}
+
+    try:
+        results = drive_service.files().list(
+            q=f"'{FOLDER_ID}' in parents and trashed=false",
+            fields="files(id, name, modifiedTime)"
+        ).execute()
+
+        files = results.get("files", [])
+        for file in files:
+            state[file["name"]] = file["modifiedTime"]  # Store last modified time as a string
+
+    except Exception as e:
+        print(f"Error fetching folder state: {e}")
+
+    return state  # Dictionary of {filename: last_modified_time}
+
+
+def download_files():
+    """Download all files from the Google Drive folder and remove deleted files."""
+    query = f"'{FOLDER_ID}' in parents and trashed=false"
+    results = drive_service.files().list(q=query, fields="files(id, name, modifiedTime)").execute()
+    files = results.get('files', [])
+
+    # Get the list of current files in Google Drive (name, ID, and modifiedTime)
+    current_files = {file['name']: {'id': file['id'], 'modifiedTime': file['modifiedTime']} for file in files}
+
+    # Get the list of files currently in the DOWNLOAD_FOLDER
+    local_files = set(os.listdir(DOWNLOAD_FOLDER))
+
+    # Remove files from DOWNLOAD_FOLDER that are no longer in Google Drive
+    for local_file in local_files:
+        if local_file not in current_files:
+            local_file_path = os.path.join(DOWNLOAD_FOLDER, local_file)
+            os.remove(local_file_path)
+            print(f"Removed: {local_file}")
+
+    # Download new or updated files
+    for file_name, file_info in current_files.items():
+        local_path = os.path.join(DOWNLOAD_FOLDER, file_name)
+        file_id = file_info['id']
+        remote_modified_time = file_info['modifiedTime']
+
+        # Check if the file exists locally
+        if os.path.exists(local_path):
+            # Get the local file's modification time
+            local_modified_time = time.ctime(os.path.getmtime(local_path))
+
+            # Convert remote_modified_time to a comparable format
+            remote_modified_time = time.strptime(remote_modified_time, "%Y-%m-%dT%H:%M:%S.%fZ")
+            local_modified_time = time.strptime(local_modified_time, "%a %b %d %H:%M:%S %Y")
+
+            # Skip download if the local file is up-to-date
+            if local_modified_time >= remote_modified_time:
+                print(f"Skipping up-to-date file: {file_name}")
+                continue
+
+        # Download the file (either new or updated)
+        request = drive_service.files().get_media(fileId=file_id)
+        with open(local_path, 'wb') as f:
+            downloader = MediaIoBaseDownload(f, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+                print(f"Downloaded: {file_name}")
+
+def rebuild_graph():
+    """Rebuild the secondary Neo4j graph with the latest files."""
+    print("Clearing existing graph...")
+    clear_graph()  # Clear existing graph data
+    print("Downloading and processing new files...")
+    all_documents = []
+    for file_name in os.listdir(DOWNLOAD_FOLDER):
+        file_path = os.path.join(DOWNLOAD_FOLDER, file_name)
+        if file_name.endswith(".pdf"):
+            loader = PyPDFLoader(file_path)
+        elif file_name.endswith(".txt"):
+            loader = TextLoader(file_path)
+        elif file_name.endswith(".docx"):
+            loader = Docx2txtLoader(file_path)
+        else:
+            print(f"Skipping unsupported file: {file_name}")
+            continue
+
+        try:
+            documents = loader.load()
+            # Add metadata (including 'source') to each document
+            for doc in documents:
+                doc.metadata["source"] = file_name  # Add the file name as the source
+                all_documents.append(doc)
+        except Exception as e:
+            print(f"Error loading file {file_name}: {e}")
+
+    print("Splitting documents into chunks...")
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=400)
+    chunked_documents = text_splitter.split_documents(all_documents)
+
+    try:
+        print("Converting documents to graph documents...")
+        llm_transformer = LLMGraphTransformer(llm=llm)
+        graph_documents = llm_transformer.convert_to_graph_documents(chunked_documents)
+        print("Graph documents created successfully.")
+    except Exception as e:
+        print(f"Error converting documents to graph documents: {e}")
+        return
+
+    print("Adding graph documents to Neo4j...")
+    try:
+        secondary_graph.add_graph_documents(graph_documents, baseEntityLabel=True, include_source=True)
+        print("✅ Secondary Neo4j graph rebuilt successfully.")
+    except Exception as e:
+        print(f"Error adding graph documents to Neo4j: {e}")
+
+def switch_graphs():
+    """Switch primary and secondary graphs."""
+    global primary_graph, secondary_graph, vector_index, PRIMARY_NEO4J_URI, SECONDARY_NEO4J_URI, PRIMARY_NEO4J_PASSWORD, SECONDARY_NEO4J_PASSWORD
+    primary_graph, secondary_graph = secondary_graph, primary_graph
+    PRIMARY_NEO4J_URI, SECONDARY_NEO4J_URI = SECONDARY_NEO4J_URI, PRIMARY_NEO4J_URI
+    PRIMARY_NEO4J_PASSWORD, SECONDARY_NEO4J_PASSWORD = SECONDARY_NEO4J_PASSWORD, PRIMARY_NEO4J_PASSWORD
+
+    # Update vector index to point to the new primary graph
+    vector_index = Neo4jVector.from_existing_graph(
+        text_embedding,
+        search_type="hybrid",
+        node_label="Document",
+        text_node_properties=["text"],
+        embedding_node_property="embedding",
+        url=PRIMARY_NEO4J_URI,
+        username=NEO4J_USERNAME,
+        password=PRIMARY_NEO4J_PASSWORD
+    )
+    print("✅ Switched primary and secondary graphs.")
+
+
+import time
+import threading
+
+stop_event = threading.Event()
+
+def monitor_folder():
+    """Monitor the Google Drive folder for changes (file additions, deletions, and modifications)."""
+    last_state = get_folder_state()
+
+    while not stop_event.is_set():  # Allow stopping
+        current_state = get_folder_state()
+        
+        if current_state != last_state:  # Detects any change (added, deleted, or modified)
+            print("Change detected in Google Drive folder. Rebuilding graph...")
+            try:
+                download_files()
+                rebuild_graph()
+                switch_graphs()
+                print("✅ Graph switched successfully.")
+            except Exception as e:
+                print(f"Error during graph rebuilding and switching: {e}")
+            last_state = current_state  # Update state after handling changes
+        else:
+            print("No changes detected in Google Drive folder.")
+
+        stop_event.wait(5)  # Allows other tasks to run
+
+
 
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
+        # Parse the JSON payload
         data = request.get_json()
-        poster_description = data.get("poster_description", "").strip()
-        question = data.get("question", "").strip()
+        if not data:
+            return jsonify({"error": "No JSON payload provided"}), 400
 
-        if not question:
-            return "Missing required field: question", 400  # Ensure question is always provided
+        # Extract poster description and question from the JSON payload
+        poster_description = data.get("poster_description", "")
+        question = data.get("question", "")
 
-        print(f"Poster Description: {poster_description if poster_description else 'None'}")
-        print(f"User Question: {question}")
+        # Combine poster description and question (if poster description is provided)
+        if poster_description:
+            combined_input = f"Poster Description: {poster_description}\nQuestion: {question}"
+        else:
+            combined_input = question
 
-        # Modify retrieval logic based on available inputs
-        retrieval_input = question if not poster_description else f"{poster_description} {question}"
-        response = chain.invoke({"poster_description": poster_description, "question": retrieval_input})
-        
-        return response, 200
+        # Retrieve chat history
+        chat_history = _format_chat_history()
+
+        # Pass the combined input to the chatbot
+        result = chain.invoke({"question": combined_input, "chat_history": chat_history})
+
+        if result and result.strip() and "relevant information" not in result:
+            # Update session history
+            history = session.get("chat_history", [])
+            history.append((combined_input, result))
+            session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]  # Keep only the last few messages
+
+            return jsonify({"answer": result}), 200
+
+        # If no relevant answer is found, log to HR FAQ DB
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
+                conn.commit()
+
+        return jsonify({"message": "No answer found. Escalating to HR."}), 202
 
     except Exception as e:
-        return f"Error: {str(e)}", 500
-
+        return jsonify({"error": str(e)}), 500
+        
 if __name__ == "__main__":
-    print("Flask app is starting...")
-    app.run(debug=True, host="0.0.0.0", port=3000)
+    print("Starting Google Drive folder monitor...")
+    
+    monitor_thread = threading.Thread(target=monitor_folder, daemon=True)
+    monitor_thread.start()
+    
+    # Start the Flask app
+    app.run(debug=True, host="0.0.0.0", port=5001)
