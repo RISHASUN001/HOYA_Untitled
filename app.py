@@ -1,5 +1,4 @@
 import os
-import json
 import warnings
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -35,6 +34,11 @@ from googleapiclient.http import MediaIoBaseDownload
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_openai import AzureOpenAIEmbeddings
 import threading
+import json
+from flask import Flask, request, jsonify, session
+import json
+import logging
+import psycopg2
 
 # Load environment variables
 load_dotenv(override=True)
@@ -597,27 +601,19 @@ def chatbot():
     try:
         logger.info("Received a request to the chatbot endpoint.")
 
-        # Parse the request data
-        raw_data = request.data  # Get raw request data as bytes
-        logger.info(f"Raw request data: {raw_data}")
+        # Get raw request data
+        raw_data = request.data.decode("utf-8").strip()  # Decode raw bytes to string
+        logger.info(f"Raw request data as string: {raw_data}")
 
-        # Convert raw data to string
-        data_str = raw_data.decode("utf-8").strip()  # Decode bytes to string
-        logger.info(f"Request data as string: {data_str}")
+        # Extract poster description and question from the raw text
+        lines = raw_data.split("\n", 1)  # Split into two parts (poster description, question)
+        
+        if len(lines) == 2:
+            poster_description, question = lines
+        else:
+            poster_description, question = "", lines[0]  # No poster description provided
 
-        # Parse the string into JSON
-        try:
-            data = json.loads(data_str)  # Convert string to JSON
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
-            return jsonify({"error": "Invalid JSON payload"}), 400
-
-        logger.info(f"Parsed JSON payload: {data}")
-
-        # Extract poster description and question
-        poster_description = data.get("poster_description", "")
-        question = data.get("question", "")
-        if not question:
+        if not question.strip():
             logger.error("Question is required.")
             return jsonify({"error": "Question is required"}), 400
 
@@ -627,9 +623,7 @@ def chatbot():
 
         # Retrieve chat history
         chat_history = _format_chat_history()
-        if not chat_history:
-            logger.info("No chat history found. Using empty history.")
-            chat_history = []
+        chat_history = chat_history if chat_history else []
 
         # Pass the combined input to the chatbot
         try:
@@ -644,7 +638,7 @@ def chatbot():
             # Update session history
             history = session.get("chat_history", [])
             history.append((combined_input, result))
-            session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]  # Keep only the last few messages
+            session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]
 
             logger.info("Returning a successful response.")
             return jsonify({"answer": result}), 200
@@ -666,6 +660,7 @@ def chatbot():
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     print("Starting Google Drive folder monitor...")
     
