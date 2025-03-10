@@ -78,23 +78,65 @@ FAQ_FILENAME = "hr_faq.txt"
 #     logging.info("✅ Cleared Neo4j database.")
 
 ### 🔹 Google Drive API Setup
-SERVICE_ACCOUNT_FILE = "service_account.json"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
-FOLDER_ID = os.getenv("FOLDER_ID", "1OAi3B-D-u5Oto0bOxkPgmtuN1UbcWrih")  # Replace with your folder ID
-
+FOLDER_ID = os.getenv("FOLDER_ID")
 # Authenticate Google Drive
-credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+credentials = service_account.Credentials.from_service_account_info(
+    {
+        "type": os.getenv("TYPE"),
+        "project_id": os.getenv("PROJECT_ID"),
+        "private_key_id": os.getenv("PRIVATE_KEY_ID"),
+        "private_key": os.getenv("PRIVATE_KEY").replace('\\n', '\n'),
+        "client_email": os.getenv("CLIENT_EMAIL"),
+        "client_id": os.getenv("CLIENT_ID"),
+        "auth_uri": os.getenv("AUTH_URI"),
+        "token_uri": os.getenv("TOKEN_URI"),
+        "auth_provider_x509_cert_url": os.getenv("AUTH_PROVIDER_X509_CERT_URL"),
+        "client_x509_cert_url": os.getenv("CLIENT_X509_CERT_URL"),
+        "universe_domain": os.getenv("UNIVERSE_DOMAIN"),
+    },
+    scopes=SCOPES
+)
+
 drive_service = build("drive", "v3", credentials=credentials)
 
+from googleapiclient.http import MediaFileUpload
+import io
+
+FAQ_FILENAME = "hr_faq.txt"
+
 def get_or_create_faq_file():
-    response = drive_service.files().list(q=f"name='{FAQ_FILENAME}' and '{FOLDER_ID}' in parents", fields="files(id)").execute()
+    response = drive_service.files().list(
+        q=f"name='{FAQ_FILENAME}' and '{FOLDER_ID}' in parents",
+        fields="files(id, mimeType)"
+    ).execute()
+    
     files = response.get("files", [])
     if files:
-        return files[0]["id"]
+        file_id = files[0]["id"]
+        logging.info(f"📄 Found existing FAQ file: {file_id}")
+        return file_id
     
-    file_metadata = {"name": FAQ_FILENAME, "mimeType": "text/plain", "parents": [FOLDER_ID]}
-    media = MediaIoBaseUpload(io.BytesIO(b""), mimetype="text/plain")
-    file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+    logging.info("❌ FAQ file not found, creating a new one...")
+
+    file_metadata = {
+        "name": FAQ_FILENAME,
+        "parents": [FOLDER_ID]
+    }
+    
+    # Create a local empty file (ensures it's .txt format)
+    with open(FAQ_FILENAME, "w") as f:
+        f.write("")
+
+    media = MediaFileUpload(FAQ_FILENAME, mimetype="text/plain")
+
+    file = drive_service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id"
+    ).execute()
+
+    logging.info(f"✅ Successfully created FAQ file: {file['id']}")
     return file["id"]
 
 FAQ_FILE_ID = get_or_create_faq_file()
