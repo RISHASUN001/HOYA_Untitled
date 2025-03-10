@@ -601,7 +601,7 @@ def chatbot():
         logger.info(f"Raw request data: {raw_data}")
 
         # Convert raw data to string
-        data_str = raw_data.decode("utf-8")  # Decode bytes to string
+        data_str = raw_data.decode("utf-8").strip()  # Decode bytes to string
         logger.info(f"Request data as string: {data_str}")
 
         # Parse the string into JSON
