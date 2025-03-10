@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import warnings
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -10,62 +9,32 @@ from langchain_community.graphs import Neo4jGraph
 import openai
 import warnings
 warnings.filterwarnings("ignore")
-import os
-from dotenv import load_dotenv
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
-import openai
 from langchain.llms import AzureOpenAI
-from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_experimental.graph_transformers import LLMGraphTransformer
-from langchain_community.graphs import Neo4jGraph
 from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnableParallel, RunnablePassthrough
 from typing import List, Tuple
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.vectorstores import Neo4jVector
 from langchain_openai import AzureOpenAIEmbeddings
 from pydantic import BaseModel, Field
-import os
-from typing import List, Tuple
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnablePassthrough
-from langchain_openai import AzureChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts.prompt import PromptTemplate
 from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import logging
 from flask import Flask, request, jsonify, session
-from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import os
-import logging
-from langchain_core.runnables import RunnablePassthrough
-from langchain.schema import AIMessage, HumanMessage
-import os
 import time
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import Neo4jVector
-from langchain_experimental.graph_transformers import LLMGraphTransformer
-from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage  
-from langchain_community.graphs import Neo4jGraph
 from langchain_openai import AzureOpenAIEmbeddings
 import threading
-from flask import Flask
 
 # Load environment variables
 load_dotenv(override=True)
