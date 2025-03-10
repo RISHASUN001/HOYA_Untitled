@@ -7,7 +7,6 @@ from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
 from langchain_community.graphs import Neo4jGraph
 import openai
-import warnings
 warnings.filterwarnings("ignore")
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
