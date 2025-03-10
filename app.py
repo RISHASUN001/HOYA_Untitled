@@ -589,7 +589,7 @@ def options():
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(name)
+logger = logging.getLogger(__name__)
 
 @app.route("/", methods=["POST"])
 def chatbot():
