@@ -573,7 +573,19 @@ def monitor_folder():
 
         stop_event.wait(5)  # Allows other tasks to run
 
+# Route for checking if the API is running
+@app.route('/', methods=['GET'])
+def home():
+    return "Flask API is running!", 200
 
+# Handle OPTIONS requests for CORS preflight
+@app.route('/', methods=['OPTIONS'])
+def options():
+    response = jsonify({})
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+    return response, 200
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
