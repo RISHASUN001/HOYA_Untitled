@@ -596,11 +596,22 @@ def chatbot():
     try:
         logger.info("Received a request to the chatbot endpoint.")
 
-        # Parse the JSON payload
-        data = request.get_json()
-        if not data:
-            logger.error("No JSON payload provided.")
-            return jsonify({"error": "No JSON payload provided"}), 400
+        # Parse the request data
+        raw_data = request.data  # Get raw request data as bytes
+        logger.info(f"Raw request data: {raw_data}")
+
+        # Convert raw data to string
+        data_str = raw_data.decode("utf-8")  # Decode bytes to string
+        logger.info(f"Request data as string: {data_str}")
+
+        # Parse the string into JSON
+        try:
+            data = json.loads(data_str)  # Convert string to JSON
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            return jsonify({"error": "Invalid JSON payload"}), 400
+
+        logger.info(f"Parsed JSON payload: {data}")
 
         # Extract poster description and question
         poster_description = data.get("poster_description", "")
@@ -654,7 +665,6 @@ def chatbot():
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return jsonify({"error": str(e)}), 500
-        
 if __name__ == "__main__":
     print("Starting Google Drive folder monitor...")
     
