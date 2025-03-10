@@ -392,10 +392,24 @@ chain = (
 
 # Google Drive API setup
 SCOPES = ['https://www.googleapis.com/auth/drive']
-SERVICE_ACCOUNT_FILE = 'service_account.json'  # Replace with your service account file
 
-credentials = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+credentials = service_account.Credentials.from_service_account_info(
+    {
+        "type": os.getenv("TYPE"),
+        "project_id": os.getenv("PROJECT_ID"),
+        "private_key_id": os.getenv("PRIVATE_KEY_ID"),
+        "private_key": os.getenv("PRIVATE_KEY").replace('\\n', '\n'),
+        "client_email": os.getenv("CLIENT_EMAIL"),
+        "client_id": os.getenv("CLIENT_ID"),
+        "auth_uri": os.getenv("AUTH_URI"),
+        "token_uri": os.getenv("TOKEN_URI"),
+        "auth_provider_x509_cert_url": os.getenv("AUTH_PROVIDER_X509_CERT_URL"),
+        "client_x509_cert_url": os.getenv("CLIENT_X509_CERT_URL"),
+        "universe_domain": os.getenv("UNIVERSE_DOMAIN"),
+    },
+    scopes=SCOPES
+)
+
 drive_service = build('drive', 'v3', credentials=credentials)
 
 # Folder ID to monitor
@@ -458,29 +472,41 @@ def download_files():
     for file_name, file_info in current_files.items():
         local_path = os.path.join(DOWNLOAD_FOLDER, file_name)
         file_id = file_info['id']
-        remote_modified_time = file_info['modifiedTime']
 
-        # Check if the file exists locally
-        if os.path.exists(local_path):
-            # Get the local file's modification time
-            local_modified_time = time.ctime(os.path.getmtime(local_path))
+        # Always re-download hr_faq.txt, regardless of modifiedTime
+        if file_name == "hr_faq.txt":
+            print(f"Force re-downloading: {file_name}")
+            # Download the file
+            request = drive_service.files().get_media(fileId=file_id)
+            with open(local_path, 'wb') as f:
+                downloader = MediaIoBaseDownload(f, request)
+                done = False
+                while not done:
+                    status, done = downloader.next_chunk()
+                print(f"Downloaded: {file_name}")
+        else:
+            # For other files, check if they are up-to-date
+            if os.path.exists(local_path):
+                # Get the local file's modification time
+                local_modified_time = os.path.getmtime(local_path)
 
-            # Convert remote_modified_time to a comparable format
-            remote_modified_time = time.strptime(remote_modified_time, "%Y-%m-%dT%H:%M:%S.%fZ")
-            local_modified_time = time.strptime(local_modified_time, "%a %b %d %H:%M:%S %Y")
+                # Parse remote modifiedTime into a timestamp
+                remote_modified_time = datetime.datetime.strptime(
+                    file_info['modifiedTime'], "%Y-%m-%dT%H:%M:%S.%fZ"
+                ).timestamp()
 
-            # Skip download if the local file is up-to-date
-            if local_modified_time >= remote_modified_time:
-                print(f"Skipping up-to-date file: {file_name}")
-                continue
+                # Skip download if the local file is up-to-date
+                if local_modified_time >= remote_modified_time:
+                    print(f"Skipping up-to-date file: {file_name}")
+                    continue
 
-        # Download the file (either new or updated)
-        request = drive_service.files().get_media(fileId=file_id)
-        with open(local_path, 'wb') as f:
-            downloader = MediaIoBaseDownload(f, request)
-            done = False
-            while not done:
-                status, done = downloader.next_chunk()
+            # Download the file (either new or updated)
+            request = drive_service.files().get_media(fileId=file_id)
+            with open(local_path, 'wb') as f:
+                downloader = MediaIoBaseDownload(f, request)
+                done = False
+                while not done:
+                    status, done = downloader.next_chunk()
                 print(f"Downloaded: {file_name}")
 
 def rebuild_graph():
@@ -553,6 +579,7 @@ def switch_graphs():
 
 import time
 import threading
+import datetime
 
 stop_event = threading.Event()
 
