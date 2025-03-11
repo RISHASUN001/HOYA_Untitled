@@ -649,7 +649,7 @@ def chatbot():
 
             # Return escalation message in the same response format
             logger.info("No answer found. Escalating to HR.")
-            return jsonify({"answer": "No answer found. Escalating to HR."}), 200
+            return jsonify({"answer": result}), 200
 
         # If a relevant result is found, return it as the answer
         history = session.get("chat_history", [])
