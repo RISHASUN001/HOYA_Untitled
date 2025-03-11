@@ -637,7 +637,7 @@ def chatbot():
             return jsonify({"error": "Failed to process the question"}), 500
 
         # Check if the result is empty or doesn't contain relevant information
-        if not result.strip() or "relevant information" not in result.lower():
+        if result and result.strip() and "relevant information" not in result.lower():
             # Log to HR FAQ DB
             try:
                 logger.info("No relevant answer found. Logging question to HR FAQ DB.")
