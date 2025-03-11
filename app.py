@@ -636,33 +636,23 @@ def chatbot():
             logger.error(f"Error in chain.invoke: {e}")
             return jsonify({"error": "Failed to process the question"}), 500
 
-        # Check if the result is empty or doesn't contain relevant information
-        if result and result.strip() and "relevant information" not in result.lower():
-            # Log to HR FAQ DB
-            try:
-                logger.info("No relevant answer found. Logging question to HR FAQ DB.")
-                with psycopg2.connect(DATABASE_URL) as conn:
-                    with conn.cursor() as cursor:
-                        cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
-                        conn.commit()
-            except Exception as e:
-                logger.error(f"Database error: {e}")
-                return jsonify({"error": "Failed to log question to database"}), 500
+        if result and result.strip() and "relevant information" not in result:
+            # Update session history
+            history = session.get("chat_history", [])
+            history.append((combined_input, result))
+            session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]  # Keep only the last few messages
 
-            # Return escalation message in the same response format
-            logger.info("No answer found. Escalating to HR.")
             return jsonify({"answer": result}), 200
 
-        # If a relevant result is found, return it as the answer
-        history = session.get("chat_history", [])
-        history.append((combined_input, result))
-        session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]
+        # If no relevant answer is found, log to HR FAQ DB
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
+                conn.commit()
 
-        logger.info("Returning a successful response.")
-        return jsonify({"answer": result}), 200
+        return jsonify({"answer": result}), 202
 
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
