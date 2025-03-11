@@ -301,9 +301,11 @@ deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
 # Store chat history in session
 CHAT_HISTORY_LIMIT = 10  # Limit stored messages
 
-def _format_chat_history():
+def _format_chat_history(history=None):
     """Format chat history for conversation retention."""
-    history = session.get("chat_history", [])
+    if not history:  # If history is None or empty, fetch from session
+        history = session.get("chat_history", [])
+
     buffer = []
     for human, ai in history:
         buffer.append(HumanMessage(content=human))
@@ -327,7 +329,7 @@ _search_query = RunnableBranch(
             run_name="HasChatHistoryCheck"
         ),
         RunnablePassthrough.assign(
-            chat_history=lambda x: _format_chat_history(x["chat_history"])
+            chat_history=lambda x: _format_chat_history(x.get("chat_history", []))
         )
         | CONDENSE_QUESTION_PROMPT
         | chat_model
