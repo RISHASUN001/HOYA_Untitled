@@ -598,29 +598,34 @@ def options():
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+import json  # Make sure json is imported
+
 @app.route("/", methods=["POST"])
 def chatbot():
     try:
         logger.info("Received a request to the chatbot endpoint.")
 
-        # Get raw request data
+        # Get raw request data and decode it to a string
         raw_data = request.data.decode("utf-8").strip()  # Decode raw bytes to string
         logger.info(f"Raw request data as string: {raw_data}")
 
-        # Extract poster description and question from the raw text
-        lines = raw_data.split("\n", 1)  # Split into two parts (poster description, question)
+        # Try to parse the JSON data
+        try:
+            data = json.loads(raw_data)  # Convert JSON string to Python dict
+            user_response = data.get("userResponse", "").strip()  # Extract the user response text
+        except json.JSONDecodeError:
+            logger.error("Invalid JSON received.")
+            return jsonify({"error": "Invalid request format"}), 400
         
-        if len(lines) == 2:
-            poster_description, question = lines
-        else:
-            poster_description, question = "", lines[0]  # No poster description provided
+        # Log the extracted user response
+        logger.info(f"Extracted user response: {user_response}")
 
-        if not question.strip():
+        if not user_response:
             logger.error("Question is required.")
             return jsonify({"error": "Question is required"}), 400
 
-        # Combine poster description and question
-        combined_input = f"Poster Description: {poster_description}\nQuestion: {question}" if poster_description else question
+        # Combine the user response into the final input to the chatbot
+        combined_input = user_response
         logger.info(f"Combined input: {combined_input}")
 
         # Retrieve chat history
@@ -640,20 +645,29 @@ def chatbot():
             # Update session history
             history = session.get("chat_history", [])
             history.append((combined_input, result))
-            session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]  # Keep only the last few messages
+            session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]
 
+            logger.info("Returning a successful response.")
             return jsonify({"answer": result}), 200
 
         # If no relevant answer is found, log to HR FAQ DB
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
-                conn.commit()
+        try:
+            logger.info("No relevant answer found. Logging question to HR FAQ DB.")
+            with psycopg2.connect(DATABASE_URL) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
+                    conn.commit()
+        except Exception as e:
+            logger.error(f"Database error: {e}")
+            return jsonify({"error": "Failed to log question to database"}), 500
 
-        return jsonify({"answer": result}), 202
+        logger.info("No answer found. Escalating to HR.")
+        return jsonify({"answer":result}), 202
 
     except Exception as e:
+        logger.error(f"Unexpected error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == "__main__":
