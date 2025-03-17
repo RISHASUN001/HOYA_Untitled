@@ -933,13 +933,13 @@ def chatbot():
         # Get raw request data and decode it
         raw_data = request.data.decode("utf-8").strip()
         
+        # Log the raw input for debugging
+        logger.info(f"Raw input: {raw_data}")
+
         # Check if the input is empty
         if not raw_data:
             logger.error("No input provided.")
             return jsonify({"error": "No input provided"}), 400
-        
-        # Log the user input for debugging
-        logger.info(f"User input: {raw_data}")
 
         # Parse input data (handle both JSON and plain string)
         try:
@@ -947,10 +947,12 @@ def chatbot():
             data = json.loads(raw_data)
             question = data.get("question", "").strip()
             poster_description = data.get("poster_description", "").strip()
+            logger.info(f"Parsed JSON input - Question: {question}, Poster Description: {poster_description}")
         except json.JSONDecodeError:
             # If parsing as JSON fails, treat the request data as a plain string (the question itself)
             question = raw_data
             poster_description = ""
+            logger.info(f"Plain string input - Question: {question}")
 
         # Validate the question
         if not question:
