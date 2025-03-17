@@ -927,37 +927,25 @@ def escalate_question():
         logger.error(f"Database error: {e}")
         return jsonify({"error": "Failed to log question to database"}), 500
 
+from flask import request, jsonify, session
+import logging
+
+logger = logging.getLogger(__name__)
+
 @app.route("/api/hr-query", methods=["POST"])
 def chatbot():
     try:
-        # Get raw request data and decode it
-        raw_data = request.data.decode("utf-8").strip()
-        
-        # Log the raw input for debugging
-        logger.info(f"Raw input: {raw_data}")
+        logger.info("Received a request to the chatbot endpoint.")
 
-        # Check if the input is empty
+        # Parse raw data from the request body
+        raw_data = request.data.decode("utf-8").strip()
         if not raw_data:
             logger.error("No input provided.")
             return jsonify({"error": "No input provided"}), 400
 
-        # Parse input data (handle both JSON and plain string)
-        try:
-            # Try to parse the request data as JSON
-            data = json.loads(raw_data)
-            question = data.get("question", "").strip()
-            poster_description = data.get("poster_description", "").strip()
-            logger.info(f"Parsed JSON input - Question: {question}, Poster Description: {poster_description}")
-        except json.JSONDecodeError:
-            # If parsing as JSON fails, treat the request data as a plain string (the question itself)
-            question = raw_data
-            poster_description = ""
-            logger.info(f"Plain string input - Question: {question}")
-
-        # Validate the question
-        if not question:
-            logger.error("Question is required.")
-            return jsonify({"error": "Question is required"}), 400
+        # Hardcode poster_description as empty string
+        question = raw_data
+        poster_description = ""
 
         # Get session state
         current_poster = session.get("active_poster", "")
@@ -1027,14 +1015,13 @@ def chatbot():
             # Update appropriate history
             session[history_key] = chat_history + [(question, result)]
             return jsonify({"answer": result}), 200
-        else: 
+        else:
             logger.info("No answer found. Escalating to HR.")
             return jsonify({"answer": result}), 202
 
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
-
+        return jsonify({"error": "Internal server error"}), 500
 
         
 if __name__ == "__main__":
