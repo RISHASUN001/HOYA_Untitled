@@ -930,20 +930,26 @@ def escalate_question():
 @app.route("/api/hr-query", methods=["POST"])
 def chatbot():
     try:
-        logger.info("Received a request to the chatbot endpoint.")
+        # Get raw request data and decode it
+        raw_data = request.data.decode("utf-8").strip()
+        
+        # Check if the input is empty
+        if not raw_data:
+            logger.error("No input provided.")
+            return jsonify({"error": "No input provided"}), 400
+        
+        # Log the user input for debugging
+        logger.info(f"User input: {raw_data}")
 
-        # Parse input data
-        request_data = request.data.decode("utf-8")  # Get raw request data as a string
-
-        # Check if the request data is JSON or a plain string
+        # Parse input data (handle both JSON and plain string)
         try:
             # Try to parse the request data as JSON
-            data = json.loads(request_data)
+            data = json.loads(raw_data)
             question = data.get("question", "").strip()
             poster_description = data.get("poster_description", "").strip()
         except json.JSONDecodeError:
             # If parsing as JSON fails, treat the request data as a plain string (the question itself)
-            question = request_data.strip()
+            question = raw_data
             poster_description = ""
 
         # Validate the question
@@ -1025,7 +1031,7 @@ def chatbot():
 
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
         
