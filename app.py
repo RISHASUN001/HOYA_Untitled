@@ -1,7 +1,7 @@
 import os
 import warnings
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, json, request, jsonify
 from flask_cors import CORS
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
@@ -34,11 +34,8 @@ from googleapiclient.http import MediaIoBaseDownload
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_openai import AzureOpenAIEmbeddings
 import threading
-import json
-from flask import Flask, request, jsonify, session
-import json
-import logging
-import psycopg2
+import pytesseract
+from PIL import Image
 
 # Load environment variables
 load_dotenv(override=True)
@@ -50,11 +47,11 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "supersecretkey")  # Needed for session
 CORS(app)
 
-SECONDARY_NEO4J_URI = "neo4j+s://495232c8.databases.neo4j.io"
-PRIMARY_NEO4J_URI = "neo4j+s://9eb697a7.databases.neo4j.io"
+SECONDARY_NEO4J_URI = "neo4j+s://771eef14.databases.neo4j.io"
+PRIMARY_NEO4J_URI = "neo4j+s://6f619797.databases.neo4j.io"
 NEO4J_USERNAME="neo4j"
-SECONDARY_NEO4J_PASSWORD="fwVyXeBgxH_vnFyQz0t9zx1srgTFELQz2_Szf1dyuGA"
-PRIMARY_NEO4J_PASSWORD="xtQyfqUiVRnGFcQgofngfX-g0LKnIs2X67SBmO1Qm7M"
+SECONDARY_NEO4J_PASSWORD="XB0t7KZlTx56J1AM2nL6zI4Pkx_HIlgZ2tXy3k69qUc"
+PRIMARY_NEO4J_PASSWORD="loVyer5cvr7MO2MXwob-k7GFq18Bu2iYSoTzxHCR_2A"
 
 # Initialize primary and secondary graphs
 primary_graph = Neo4jGraph(url=PRIMARY_NEO4J_URI, username=NEO4J_USERNAME, password=PRIMARY_NEO4J_PASSWORD)
@@ -152,85 +149,176 @@ prompt = ChatPromptTemplate.from_messages(
 
 entity_chain = prompt | llm.with_structured_output(Entities)
 
-from langchain.chat_models import AzureChatOpenAI
-from langchain.schema import HumanMessage
+# from langchain.chat_models import AzureChatOpenAI
+# from langchain.schema import HumanMessage
 
-llm_synonym = AzureChatOpenAI(
-    openai_api_version=os.environ['AZURE_OPENAI_API_VERSION'],
-    azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
-    api_key=os.environ['AZURE_OPENAI_APIKEY'],
-    azure_deployment=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
-    temperature=0.3
-)
+# llm_synonym = AzureChatOpenAI(
+#     openai_api_version=os.environ['AZURE_OPENAI_API_VERSION'],
+#     azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
+#     api_key=os.environ['AZURE_OPENAI_APIKEY'],
+#     azure_deployment=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
+#     temperature=0.3
+# )
 
 
-def expand_entity_with_llm(entity: str) -> List[str]:
-    """Use Azure OpenAI to find alternative names for an entity."""
-    prompt = f"""
-    Provide a list of alternative names, synonyms, and variations for the entity: "{entity}". 
-    Keep responses short and return just a list of words or phrases.
-    """
+# def expand_entity_with_llm(entity: str) -> List[str]:
+#     """Use Azure OpenAI to find alternative names for an entity."""
+#     prompt = f"""
+#     Provide a list of alternative names, synonyms, and variations for the entity: "{entity}". 
+#     Keep responses short and return just a list of words or phrases.
+#     """
     
-    response = llm_synonym([HumanMessage(content=prompt)]).content
-    return response.split(", ")
+#     response = llm_synonym([HumanMessage(content=prompt)]).content
+#     return response.split(", ")
 
      
+# def generate_full_text_query(input: str) -> str:
+#     """Generate a Neo4j full-text search query with LLM-generated synonyms."""
+#     words = [el for el in remove_lucene_chars(input).split() if el]
+
+#     # Get expanded terms from Azure OpenAI
+#     expanded_words = set(words)  # Start with original words
+#     for word in words:
+#         expanded_terms = expand_entity_with_llm(word)
+#         expanded_words.update(expanded_terms)
+
+#     # Format for Neo4j full-text search
+#     return " OR ".join([f"{word}~2" for word in expanded_words])
+
+from neo4j import GraphDatabase
+import os
+from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
+
+
+# Initialize Neo4j driver
+driver = GraphDatabase.driver(
+    uri= PRIMARY_NEO4J_URI,
+    auth=(NEO4J_USERNAME, PRIMARY_NEO4J_PASSWORD)
+)
+
+#Function to create the full-text index
+def create_fulltext_index(tx):
+    query = '''
+    CREATE FULLTEXT INDEX `fulltext_entity_id` 
+    FOR (n:__Entity__) 
+    ON EACH [n.id];
+    '''
+    tx.run(query)
+
+# Run the function
+def create_index():
+    with driver.session() as session:
+        session.execute_write(create_fulltext_index)
+        print("Fulltext index created successfully.")
+
+# Try creating the index
+try:
+    create_index()
+except Exception as e:
+    print("Error creating index:", e)
+
+# Close connection
+driver.close()
+
+# Function to clean input and generate a full-text search query for Neo4j
 def generate_full_text_query(input: str) -> str:
-    """Generate a Neo4j full-text search query with LLM-generated synonyms."""
     words = [el for el in remove_lucene_chars(input).split() if el]
-
-    # Get expanded terms from Azure OpenAI
-    expanded_words = set(words)  # Start with original words
-    for word in words:
-        expanded_terms = expand_entity_with_llm(word)
-        expanded_words.update(expanded_terms)
-
-    # Format for Neo4j full-text search
-    return " OR ".join([f"{word}~2" for word in expanded_words])
+    if not words:
+        return ""
+    full_text_query = " AND ".join([f"{word}~2" for word in words])
+    print(f"Generated Query: {full_text_query}")
+    return full_text_query.strip()
 
 
-
-# Fulltext index query
 def structured_retriever(question: str, chat_history: List[Tuple[str, str]] = None) -> str:
     result = ""
 
     # Merge chat history and question
     if chat_history:
-        history_context = " ".join([f"Q: {q} A: {a}" for q, a in chat_history[-3:]])  
+        history_context = " ".join([f"Q: {q} A: {a}" for q, a in chat_history[-3:]])
         context_input = f"Chat history:\n{history_context}\n\nFollow-up question: {question}"
     else:
         context_input = question
 
-    entities = entity_chain.invoke({"question": context_input})  
+    entities = entity_chain.invoke({"question": context_input})
     
     if not hasattr(entities, 'names') or not entities.names:
         return "No entities found in the question."
 
     for entity in entities.names:
-        query_text = generate_full_text_query(entity)  # Now uses LLM-based expansion
+        # Generate expanded query using LLM
+        query_text = generate_full_text_query(entity)
         
         response = primary_graph.query(
-            """CALL db.index.fulltext.queryNodes('entity', $query, {limit:5})
-            YIELD node, score
-            WHERE score > 0.5  
-            RETURN node.name AS entity_name, score
-            ORDER BY score DESC
-            LIMIT 3
+            """CALL db.index.fulltext.queryNodes('fulltext_entity_id', $query, {limit:2})
+            YIELD node,score
+            CALL {
+              WITH node
+              MATCH (node)-[r:!MENTIONS]->(neighbor)
+              RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
+              UNION ALL
+              WITH node
+              MATCH (node)<-[r:!MENTIONS]-(neighbor)
+              RETURN neighbor.id + ' - ' + type(r) + ' -> ' +  node.id AS output
+            }
+            RETURN output LIMIT 50
             """,
-            {"query": query_text},
+            {"query": query_text},  # Use expanded query here
         )
-
-        if not response:
-            result += f"\nNo relevant information found for entity: {entity}."
+        
+        if response:
+            result += "\n".join([el['output'] for el in response]) + "\n"
         else:
-            for el in response:
-                result += f"\nPossible match: {el['entity_name']} (Score: {el['score']:.2f})"
+            result += f"\nNo relationships found for: {entity}\n"
 
-    return result
+    return result.strip()
+
+# # Fulltext index query
+# def structured_retriever(question: str, chat_history: List[Tuple[str, str]] = None) -> str:
+#     result = ""
+
+#     # Merge chat history and question
+#     if chat_history:
+#         history_context = " ".join([f"Q: {q} A: {a}" for q, a in chat_history[-3:]])  
+#         context_input = f"Chat history:\n{history_context}\n\nFollow-up question: {question}"
+#     else:
+#         context_input = question
+
+#     entities = entity_chain.invoke({"question": context_input})  
+    
+#     if not hasattr(entities, 'names') or not entities.names:
+#         return "No entities found in the question."
+
+#     for entity in entities.names:
+#         query_text = generate_full_text_query(entity)  # Now uses LLM-based expansion
+        
+#         response = primary_graph.query(
+#             """CALL db.index.fulltext.queryNodes('entity', $query, {limit:5})
+#             YIELD node, score
+#             WHERE score > 0.5  
+#             RETURN node.name AS entity_name, score
+#             ORDER BY score DESC
+#             LIMIT 3
+#             """,
+#             {"query": query_text},
+#         )
+
+#         if not response:
+#             result += f"\nNo relevant information found for entity: {entity}."
+#         else:
+#             for el in response:
+#                 result += f"\nPossible match: {el['entity_name']} (Score: {el['score']:.2f})"
+
+#     return result
 
 
 
 SIMILARITY_THRESHOLD = 0.7  # Adjust based on experimentation
+
+def clean_text(text: str) -> str:
+    """Remove extra spaces and normalize formatting"""
+    # Replace newlines with spaces and collapse multiple spaces
+    return ' '.join(text.replace('\n', ' ').split()).strip()
 
 def retriever(question: str):
     print(f"Search query: {question}")
@@ -238,31 +326,35 @@ def retriever(question: str):
     # Retrieve chat history
     chat_history = session.get("chat_history", [])
 
-    # Structured retrieval using chat history
-    structured_data = structured_retriever(question, chat_history)
-    print(f"Structured data retrieved: {structured_data}")
+    # Structured retrieval with cleaning
+    structured_data = clean_text(structured_retriever(question, chat_history))
+    print(f"Cleaned structured data: {structured_data}")
 
-    # Vector search retrieval (unchanged)
+    # Vector search retrieval with cleaning
     retrieved_docs = vector_index.similarity_search_with_score(question, k=5)
     
     unstructured_data = []
     for doc, score in retrieved_docs:
-        print(f"Retrieved: {doc.page_content} with score {score}")
+        cleaned_content = clean_text(doc.page_content)
+        print(f"Cleaned retrieved: {cleaned_content} with score {score}")
         if score >= SIMILARITY_THRESHOLD:
-            unstructured_data.append(doc.page_content)
+            unstructured_data.append(cleaned_content)
 
-    # Check if both structured and unstructured data are empty
+    # Check with cleaned data
     if (
-        (not structured_data.strip() or "No relevant information" in structured_data)
+        (not structured_data.strip() 
+         or "No relevant information" in structured_data)
         and not unstructured_data
     ):
         return "No relevant information available."
 
-    # Combine and format the final response
+    # Format clean final response
     final_data = f"""Structured data:
     {structured_data}
+    
     Unstructured data:
-    {"#Document ".join(unstructured_data)}
+    {" ".join([f"#Document {i+1}: {text}" 
+              for i, text in enumerate(unstructured_data)])}
     """
     return final_data
 
@@ -283,31 +375,48 @@ from langchain_core.runnables import (
     RunnablePassthrough,
 )
 
-
-## Azure OpenAI chat model
 chat_model = AzureChatOpenAI(
     api_key=os.getenv("AZURE_OPENAI_APIKEY"),
-    model_kwargs={"api_base": os.getenv("AZURE_OPENAI_ENDPOINT")},
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),  # Use `azure_endpoint` instead of `api_base`
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
     deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini"),
     temperature=0
 )
 
-api_key = os.getenv("AZURE_OPENAI_APIKEY")
-api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
-api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
-deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
+
+# ## Azure OpenAI chat model
+# chat_model = AzureChatOpenAI(
+#     api_key=os.getenv("AZURE_OPENAI_APIKEY"),
+#     model_kwargs={"api_base": os.getenv("AZURE_OPENAI_ENDPOINT")},
+#     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-01-15-preview"),
+#     deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini"),
+#     temperature=0
+# )
+
+# api_key = os.getenv("AZURE_OPENAI_APIKEY")
+# api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
+# api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+# deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
 
 # Store chat history in session
 CHAT_HISTORY_LIMIT = 10  # Limit stored messages
 
-def _format_chat_history():
+def is_follow_up_question(question: str) -> bool:
+    """Check if the question is a follow-up based on connector words."""
+    connector_words = ["so", "then", "therefore", "also", "and", "but", "however", "thus"]
+    return any(word in question.lower() for word in connector_words)
+
+def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List[dict]:
     """Format chat history for conversation retention."""
-    history = session.get("chat_history", [])
+    if not chat_history:
+        return []
+    
+    # Only keep the last few messages to avoid overwhelming the context
+    recent_history = chat_history[-3:]  # Adjust the number as needed
     buffer = []
-    for human, ai in history:
-        buffer.append(HumanMessage(content=human))
-        buffer.append(AIMessage(content=ai))
+    for human, ai in recent_history:
+        buffer.append({"role": "user", "content": human})
+        buffer.append({"role": "assistant", "content": ai})
     return buffer
     
 
@@ -315,26 +424,64 @@ def _format_chat_history():
 # Define the condense question prompt
 CONDENSE_QUESTION_PROMPT = ChatPromptTemplate.from_messages(
     [
-        ("system", "You are an assistant that refines follow-up questions based on chat history. Focus only on the most recent question and ignore the rest of the chat history unless explicitly referenced."),
-        ("human", "Given the conversation history:\n\n{chat_history}\n\nHow would you rewrite this question to focus only on the most recent question?"),
+        (
+            "system",
+            "You are an assistant that refines follow-up questions based on chat history. "
+            "If the user explicitly references the chat history, include relevant context. "
+            "Otherwise, focus only on the most recent question."
+        ),
+        (
+            "human",
+            "Given the conversation history:\n\n{chat_history}\n\n"
+            "How would you rewrite this question to focus on the most relevant information?\n"
+            "Question: {question}"
+        ),
     ]
 )
 
-# Search query pipeline
+from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
+import re
+
+def validate_fuzzy_query(query: str) -> str:
+    """Allow fuzzy operators but escape problematic characters"""
+    # Preserve valid ~2 fuzzy syntax but escape other special chars
+    return re.sub(r'([{}[\]()^"*?:\\/])(?![0-9~])', r'\\\1', query)
+
+# Combined search query pipeline
 _search_query = RunnableBranch(
+    # Priority 1: Poster context with chat history
     (
         RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
-            run_name="HasChatHistoryCheck"
+            run_name="PosterContextCheck"
         ),
         RunnablePassthrough.assign(
             chat_history=lambda x: _format_chat_history(x["chat_history"])
         )
         | CONDENSE_QUESTION_PROMPT
         | chat_model
-        | StrOutputParser(),
+        | StrOutputParser()
+        | RunnableLambda(validate_fuzzy_query)
     ),
-    RunnableLambda(lambda x: x["question"]),
+    # Priority 2: Follow-up questions without poster context
+    (
+        RunnableLambda(lambda x: is_follow_up_question(x["question"])).with_config(
+            run_name="FollowUpCheck"
+        ),
+        RunnablePassthrough.assign(
+            chat_history=lambda x: _format_chat_history(x.get("chat_history", []))
+        )
+        | CONDENSE_QUESTION_PROMPT
+        | chat_model
+        | StrOutputParser()
+        | RunnableLambda(validate_fuzzy_query)
+    ),
+    # Default: Raw question with validation
+    RunnableLambda(lambda x: validate_fuzzy_query(x["question"])).with_config(
+        run_name="RawQuestion"
+    )
 )
+
+
 
 template = """Answer the question based only on the following context:
 {context}
@@ -343,7 +490,7 @@ Question: {question}
 
 Use natural language and be concise.
 
-If the context does not contain relevant information or is empty, always respond with: "No relevant information found."
+If the context does not contain relevant information or is empty, always respond with: "No relevant information available. Escalating to HR"
 
 Answer:"""
 
@@ -351,17 +498,27 @@ Answer:"""
 
 prompt = ChatPromptTemplate.from_template(template)    
 
+from langchain_core.runnables import Runnable
+
+class RetrieverWrapper(Runnable):
+    def __init__(self, retriever_func):
+        self.retriever_func = retriever_func
+        
+    def invoke(self, input, config=None, **kwargs):
+        # Extract question from LangChain's input format
+        question = input.get("question") if isinstance(input, dict) else str(input)
+        return self.retriever_func(question)
+
+# Wrap your existing retriever
 chain = (
-    RunnableParallel(
-        {
-            "context": _search_query | retriever,
-            "question": RunnablePassthrough(),
-        }
-    )
+    RunnableParallel({
+        "context": _search_query | RetrieverWrapper(retriever),
+        "question": RunnablePassthrough(),
+    })
     | prompt
     | llm
     | StrOutputParser()
-)  
+)
 
 # Google Drive API setup
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -578,6 +735,10 @@ def monitor_folder():
 
         stop_event.wait(5)  # Allows other tasks to run
 
+
+# Set Tesseract OCR path (only needed for Windows)
+pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
+
 # Route for checking if the API is running
 @app.route('/', methods=['GET'])
 def home():
@@ -596,74 +757,271 @@ def options():
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@app.route("/", methods=["POST"])
+# **New API: Extract and Enhance Poster Text**
+from PIL import Image, ImageEnhance, ImageFilter
+
+@app.route("/api/extract-text", methods=["POST"])
+def extract_text_from_image():
+    try:
+        if "image" not in request.files:
+            return jsonify({"error": "No image file provided"}), 400
+
+        image_file = request.files["image"]
+        image = Image.open(image_file)
+
+        # Log image details
+        logger.info(f"Image format: {image.format}")
+        logger.info(f"Image size: {image.size}")
+        logger.info(f"Image mode: {image.mode}")
+
+        # Preprocess the image
+        image = image.convert("L")  # Convert to grayscale
+        image = ImageEnhance.Contrast(image).enhance(2.0)  # Increase contrast
+        image = image.filter(ImageFilter.SHARPEN)  # Sharpen the image
+
+        # Extract raw text using Tesseract OCR
+        raw_text = pytesseract.image_to_string(image).strip()
+        logger.info(f"Extracted raw text: {raw_text}")
+
+        if not raw_text:
+            logger.warning("No text extracted. Trying alternative preprocessing.")
+            image = image.convert("1")  # Convert to black and white
+            raw_text = pytesseract.image_to_string(image).strip()
+
+        if not raw_text:
+            return jsonify({"error": "No readable text found in the image"}), 400
+
+        # Send the extracted text to Azure OpenAI for refinement
+        refined_description = generate_poster_description(raw_text)
+        
+        # Return refined description
+        return jsonify({"poster_description": refined_description}), 200
+
+    except Exception as e:
+        logger.error(f"Error extracting text: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+def generate_poster_description(raw_text):
+    try:
+        system_message = (
+            "You are a text extraction tool. Your ONLY tasks are:\n"
+            "1. Identify EXACT phrases from the raw text that describe a poster\n"
+            "2. Preserve ORIGINAL wording without additions\n"
+            "3. Return 'No relevant poster description found' if no clear description exists\n"
+            "4. Never invent information\n\n"
+            "Examples:\n"
+            "Raw: 'HR policies document 2023'\n"
+            "Output: 'HR policies document 2023'\n\n"
+            "Raw: 'Contact: hr@company.com'\n"
+            "Output: 'No relevant poster description found'"
+        )
+
+        user_message = (
+            f"RAW IMAGE TEXT:\n"
+            f"{raw_text}\n\n"
+            "EXTRACT EXACT POSTER DESCRIPTION OR RETURN 'No relevant poster description found':"
+        )
+
+        logger.info(f"Sending extracted text for literal extraction...\n{user_message}")
+
+        # Use the chat model to generate the poster description
+        response = chat_model.invoke(
+            [
+
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ],
+            temperature = 0
+        )
+
+
+        # Log the full response for debugging
+        logger.info(f"Azure OpenAI API Response: {response}")
+
+        # Extract the refined description from the response
+        refined_text = response.content.strip()
+
+        logger.info(f"Generated Poster Description: {refined_text}")
+        return refined_text
+
+    except Exception as e:
+        logger.error(f"Error generating poster description: {e}")
+        return "Failed to generate a coherent poster description."
+
+def mix_poster_and_question(poster_description, question):
+    # Define the no-poster placeholder text
+    NO_POSTER_TEXT = "No relevant poster description found"
+    
+    try:
+        # Immediately return raw question if no valid poster
+        if poster_description.strip().lower() == NO_POSTER_TEXT.lower():
+            logger.info("Skipping combination - no relevant poster")
+            return question
+
+        # System message with strict constraints
+        system_message = """You are a query combiner. Follow these rules:
+1. Use ONLY the EXACT wording from inputs
+2. NO new information, interpretations, or assumptions
+3. Combine into ONE grammatical sentence
+4. Format: "How does [poster content] relate to [question]?"
+
+Example:
+Poster: "Safety Helmets Policy"
+Question: "What are the requirements?"
+Combined: "What are the safety helmet policy requirements?"
+"""
+
+        # User message with clear separation
+        user_message = f"""POSTER CONTENT (use verbatim):
+{poster_description}
+
+QUESTION (use verbatim):
+{question}
+
+COMBINED QUERY:"""
+
+        # Get deterministic response
+        response = chat_model.invoke([
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message}
+        ], temperature=0)
+
+        # Validate and clean response
+        combined = response.content.strip()
+        
+        # Fallback checks
+        if any([
+            NO_POSTER_TEXT.lower() in combined.lower(),
+            not any(word in combined for word in poster_description.split()[:3]),
+            "?" not in combined  # Ensure it's still a question
+        ]):
+            combined = question  # Fall back to raw question
+
+        logger.info(f"Final combined query: {combined}")
+        return combined
+
+    except Exception as e:
+        logger.error(f"Combination error: {e}")
+        return question  # Return raw question on failure
+    
+
+
+@app.route('/api/escalate', methods=['POST'])
+def escalate_question():
+    data = request.get_json()
+    question = data.get('question')
+    
+    if not question:
+        return jsonify({"error": "Question is required"}), 400
+
+    try:
+        logger.info("Logging escalated question to HR FAQ DB.")
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("INSERT INTO faq (question) VALUES (%s)", (question,))
+                conn.commit()
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        logger.error(f"Database error: {e}")
+        return jsonify({"error": "Failed to log question to database"}), 500
+
+@app.route("/api/hr-query", methods=["POST"])
 def chatbot():
     try:
         logger.info("Received a request to the chatbot endpoint.")
 
-        # Get raw request data
-        raw_data = request.data.decode("utf-8").strip()  # Decode raw bytes to string
-        logger.info(f"Raw request data as string: {raw_data}")
-
-        # Extract poster description and question from the raw text
-        lines = raw_data.split("\n", 1)  # Split into two parts (poster description, question)
+        # Parse input data
+        data = json.loads(request.data)
+        question = data.get("question", "").strip()
+        poster_description = data.get("poster_description", "").strip()
         
-        if len(lines) == 2:
-            poster_description, question = lines
-        else:
-            poster_description, question = "", lines[0]  # No poster description provided
-
-        if not question.strip():
+        if not question:
             logger.error("Question is required.")
             return jsonify({"error": "Question is required"}), 400
 
-        # Combine poster description and question
-        combined_input = f"Poster Description: {poster_description}\nQuestion: {question}" if poster_description else question
-        logger.info(f"Combined input: {combined_input}")
+        # Get session state
+        current_poster = session.get("active_poster", "")
+        poster_chat_history = session.get("poster_chat_history", [])
+        general_chat_history = session.get("general_chat_history", [])
 
-        # Retrieve chat history
-        chat_history = _format_chat_history()
-        chat_history = chat_history if chat_history else []
+        # Determine question type
+        is_poster_follow_up = current_poster and is_follow_up_question(question)
+        is_general_follow_up = not current_poster and is_follow_up_question(question)
 
-        # Pass the combined input to the chatbot
+        # Handle poster context
+        if poster_description:
+            # New poster context - reset all histories
+            session["active_poster"] = poster_description
+            session["poster_chat_history"] = []
+            session["general_chat_history"] = []
+            logger.info("New poster context detected. Resetting all histories.")
+        elif not is_poster_follow_up and not is_general_follow_up:
+            # Clear poster context for standalone questions
+            session["active_poster"] = ""
+            session["poster_chat_history"] = []
+            logger.info("Standalone question detected. Clearing poster context.")
+
+        # Prepare query based on context
+        active_poster = session.get("active_poster", "")
+        combined_input = question  # Default to raw question
+
+        if active_poster and "No relevant poster" not in active_poster:
+            if is_poster_follow_up:
+                # Combine with poster context for follow-ups
+                combined_input = mix_poster_and_question(active_poster, question)
+                logger.info(f"Poster follow-up: {combined_input}")
+            else:
+                # Clear poster context for non-follow-up questions
+                session["active_poster"] = ""
+                session["poster_chat_history"] = []
+                logger.info("Non-follow-up question - cleared poster context")
+
+        # Manage conversation histories
+        if active_poster:
+            # Use poster-specific history
+            chat_history = poster_chat_history
+            history_key = "poster_chat_history"
+        else:
+            # Use general conversation history
+            chat_history = general_chat_history
+            history_key = "general_chat_history"
+
+        if not (is_poster_follow_up or is_general_follow_up):
+            session[history_key] = []
+            chat_history = []
+            logger.info("Cleared chat history for new conversation")
+
+        # Process query
         try:
-            logger.info("Invoking the chain with the combined input.")
-            result = chain.invoke({"question": combined_input, "chat_history": chat_history})
-            logger.info(f"Chain invocation result: {result}")
+            logger.info("Invoking processing chain")
+            result = chain.invoke({
+                "question": combined_input,
+                "chat_history": chat_history
+            })
         except Exception as e:
-            logger.error(f"Error in chain.invoke: {e}")
-            return jsonify({"error": "Failed to process the question"}), 500
+            logger.error(f"Processing error: {e}")
+            return jsonify({"error": "Failed to process question"}), 500
 
-        # Check if the result is empty or doesn't contain relevant information
-        if not result.strip() or "relevant information" not in result.lower():
-            # Log to HR FAQ DB
-            try:
-                logger.info("No relevant answer found. Logging question to HR FAQ DB.")
-                with psycopg2.connect(DATABASE_URL) as conn:
-                    with conn.cursor() as cursor:
-                        cursor.execute("INSERT INTO faq (question) VALUES (%s)", (combined_input,))
-                        conn.commit()
-            except Exception as e:
-                logger.error(f"Database error: {e}")
-                return jsonify({"error": "Failed to log question to database"}), 500
-
-            # Return escalation message in the same response format
+        # Handle response
+        if result and "relevant information" not in result:
+            # Update appropriate history
+            session[history_key] = chat_history + [(question, result)]
+            return jsonify({"answer": result}), 200
+        else: 
             logger.info("No answer found. Escalating to HR.")
-            return jsonify({"answer": "No answer found. Escalating to HR."}), 200
+            return jsonify({"answer": result}), 202
 
-        # If a relevant result is found, return it as the answer
-        history = session.get("chat_history", [])
-        history.append((combined_input, result))
-        session["chat_history"] = history[-CHAT_HISTORY_LIMIT:]
-
-        logger.info("Returning a successful response.")
-        return jsonify({"answer": result}), 200
-
+    except json.JSONDecodeError:
+        logger.error("Invalid request format")
+        return jsonify({"error": "Invalid JSON format"}), 400
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
+        
 if __name__ == "__main__":
     print("Starting Google Drive folder monitor...")
     
