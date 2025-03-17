@@ -933,10 +933,20 @@ def chatbot():
         logger.info("Received a request to the chatbot endpoint.")
 
         # Parse input data
-        data = json.loads(request.data)
-        question = data.get("question", "").strip()
-        poster_description = data.get("poster_description", "").strip()
-        
+        request_data = request.data.decode("utf-8")  # Get raw request data as a string
+
+        # Check if the request data is JSON or a plain string
+        try:
+            # Try to parse the request data as JSON
+            data = json.loads(request_data)
+            question = data.get("question", "").strip()
+            poster_description = data.get("poster_description", "").strip()
+        except json.JSONDecodeError:
+            # If parsing as JSON fails, treat the request data as a plain string (the question itself)
+            question = request_data.strip()
+            poster_description = ""
+
+        # Validate the question
         if not question:
             logger.error("Question is required.")
             return jsonify({"error": "Question is required"}), 400
@@ -1013,9 +1023,6 @@ def chatbot():
             logger.info("No answer found. Escalating to HR.")
             return jsonify({"answer": result}), 202
 
-    except json.JSONDecodeError:
-        logger.error("Invalid request format")
-        return jsonify({"error": "Invalid JSON format"}), 400
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return jsonify({"error": "Internal server error"}), 500
