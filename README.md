@@ -194,7 +194,7 @@ npm run dev
 💬 **Microsoft Teams integration**
 ⚖️ **Legal Department**
 
-* Contract clause detection and alarm phrasing
+* Contract clause detection (Using pdf upload of the contract)
 
 💰 **Finance Department**
 
