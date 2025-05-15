@@ -97,17 +97,17 @@ pip install -r requirements.txt
 
 ### 3. Setup Tesseract OCR
 
-- macOS (via Homebrew):
+** macOS (via Homebrew):
 
 ```bash
 brew install tesseract
 ```
 
-- Windows:
+* Windows:
 
--- Download from https://github.com/tesseract-ocr/tesseract
+** Download from https://github.com/tesseract-ocr/tesseract
 
--- Add the install path (e.g., C:\Program Files\Tesseract-OCR) to your system's PATH.
+** Add the install path (e.g., C:\Program Files\Tesseract-OCR) to your system's PATH.
 
 ### 4. Configure Environment Variables
 
@@ -131,33 +131,35 @@ Note: If utilising Azure OpenAI API Key, utilise 2024 Aug Version and higher. Ve
 
 ### 5. Run the following commands to run the project
 
-- Run the backend server
+* Run the backend server
 ```bash
 python app.py
 ```
 
-- Run the faq_backend server
+* Run the faq_backend server
 ```bash
 python faq_backend.py
 ```
 
-- Run the applicaton
+* Run the applicaton
 ```bash
 npm run dev
 ```
 
 ## 5. Usage
-- Launch the chatbot via the web interface.
+* Launch the chatbot via the web interface.
 
--- Ask HR-related questions or upload policy documents as images.
+** Ask HR-related questions or upload policy documents as images.
 
--- If a query is unanswered:
+** If a query is unanswered:
 
---- It is routed to HR via the admin dashboard.
+*** It is routed to HR via the admin dashboard.
 
---- Once answered, you receive an email.
+*** Once answered, you receive an email.
 
--- The chatbot is updated automatically.
+** The chatbot is updated automatically.
+
+---
 
 7. Future Plans
 🌐 Multi-language support.
@@ -175,6 +177,8 @@ npm run dev
 - FAQs on payroll, reimbursement, and finance SOPs.
 
 🔗 Integration with Microsoft Graph API for syncing with D365.
+
+---
 
 ## 7. Contributors List
 👩‍💻 Risha Sunil Shetty – GitHub: @RISHASUN001
