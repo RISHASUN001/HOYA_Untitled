@@ -75,35 +75,35 @@ Modern HR departments face a flood of repetitive queries. ChatHera helps by:
 
 1. **Frontend Chatbot**
 
-   * Web UI inspired by Microsoft Teams Copilot
+   * Web UI inspired by Microsoft Teams Copilot  
    * Supports real-time chat with context retention
 
-2. **Backend: RAG Engine**
+2. **RAG Pipeline**
 
-  - Analyzes the incoming user query to extract **key entities** and **semantic meaning**.
-  - **Hybrid Search Pipeline**:
-    - **Neo4j Graph Database** is used to identify relevant policy nodes and their relationships based on extracted entities.
-    - **Vector Database** retrieves semantically similar document chunks using Azure OpenAI embeddings.
-  - **Combined Results**:
-    - Responses from Neo4j (entity-based search) and the Vector DB (semantic search) are merged.
-    - Ensures highly relevant and context-aware answers.
-  - **Optimized Search Time**:
-    - Neo4j acts as a pre-filter, reducing the load on the vector DB and speeding up the overall response time.
-
+   * Analyzes the incoming user query to extract **key entities** and **semantic meaning**
+   * **Hybrid Search**:
+     - **Neo4j Graph Database** identifies relevant policy nodes and relationships based on extracted entities
+     - **Vector Database** retrieves semantically similar document chunks using Azure OpenAI embeddings
+   * **Combined Results**:
+     - Results from Neo4j (entity-based search) and Vector DB (semantic search) are merged
+     - Delivers highly relevant and context-aware answers
+   * **Optimized Search Time**:
+     - Neo4j pre-filters the search space, reducing load on Vector DB and speeding up response time
 
 3. **Neo4j Dual-Graph Design**
 
-   * `active_graph`: Used in production
+   * `active_graph`: Used in production  
    * `update_graph`: Updated version activated post-sync
 
 4. **Tesseract OCR**
 
    * Extracts text from uploaded images
 
-5. **Admin Dashboard (FAQ System)**
+5. **HR FAQ Dashboard**
 
-   * HR views and responds to unanswered queries
+   * HR views and responds to unanswered queries  
    * Triggers graph updates and user notifications
+
 
 ---
 
