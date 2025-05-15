@@ -191,7 +191,9 @@ npm run dev
 ## 6. Future Plans
 
 🌐 **Multi-language support**
+
 💬 **Microsoft Teams integration**
+
 ⚖️ **Legal Department**
 
 * Contract clause detection (Using pdf upload of the contract)
