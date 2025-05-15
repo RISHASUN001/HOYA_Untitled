@@ -212,7 +212,7 @@ npm run dev
 
 - 👩‍💻 **Risha Sunil Shetty** – [@RISHASUN001](https://github.com/RISHASUN001)
 - 👩‍💻 **Janhavee Singh** – [@JanhaveeSingh](https://github.com/JanhaveeSingh)
-- 👩‍💻 **Shi Ying Wang** – [@yiihsuenn](https://github.com/yiihsuenn)
-- 👩‍💻 **Yi Hsuen Cheng** – [@cjkejw](https://github.com/cjkejw)
+- 👩‍💻 **Yi Hsuen Cheng** – [@yiihsuenn](https://github.com/yiihsuenn)
+- 👩‍💻 **Wang Shi Ying** – [@cjkejw](https://github.com/cjkejw)
 
 
