@@ -1,8 +1,12 @@
-# Team_Untitled – ChatHera: The HR Chatbot Revolution 💬
+Here's your revised and polished `README.md` with improved structure, clarity, and markdown formatting. I’ve ensured consistency in section ordering, spacing, and language usage for a more professional and readable presentation:
 
-🏆 **1st Runner-Up** at the **NTU CampCode x HOYA Chatbot Hackathon 2025!**
+---
 
-ChatHera – “Her-Era” is a next-generation HR chatbot powered by Retrieval-Augmented Generation (RAG) and Neo4j Graph Databases. Built for HOYA Electronics, ChatHera reduces HR workloads by answering policy-related queries, learning from unknown questions, and offering seamless, context-aware conversations.
+# 🏢 Team\_Untitled – ChatHera: The HR Chatbot Revolution 💬
+
+🏆 **1st Runner-Up** at **NTU CampCode x HOYA Chatbot Hackathon 2025**
+
+**ChatHera** – “Her-Era” is a next-gen HR chatbot powered by Retrieval-Augmented Generation (RAG), Neo4j Graph Databases, and Computer Vision. Built for HOYA Electronics, ChatHera reduces HR workloads by automating policy-related queries, learning from unknown questions, and offering seamless, context-aware conversations.
 
 > 💡 **UI inspired by HOYA Electronics' official website**
 
@@ -10,73 +14,98 @@ ChatHera – “Her-Era” is a next-generation HR chatbot powered by Retrieval-
 
 ## 📚 Table of Contents
 
-- [Overview](#1-overview)
-- [Features](#2-features)
-- [How It Works](#3-how-it-works)
-- [Installation](#4-installation)
-- [Usage](#5-usage)
-- [Future Plans](#6-future-plans)
-- [Contributors List](#7-contributors-list)
+1. [Overview](#1-overview)
+2. [Features](#2-features)
+3. [How It Works](#3-how-it-works)
+4. [Installation](#4-installation)
+5. [Usage](#5-usage)
+6. [Future Plans](#6-future-plans)
+7. [Contributors](#7-contributors)
 
 ---
 
 ## 1. Overview
 
-Modern HR departments are often overwhelmed with repetitive queries. ChatHera steps in to automate this process by:
+Modern HR departments face a flood of repetitive queries. ChatHera helps by:
 
-- Parsing HR policy PDFs.
-- Handling context-aware, natural conversations.
-- Updating itself via an HR-facing dashboard.
-- Ensuring **zero service downtime** using a **dual-graph system**.
+* Parsing and understanding HR policy PDFs and images.
+* Providing context-aware, natural conversations.
+* Learning from unanswered questions through a self-updating FAQ system.
+* Ensuring **zero downtime** through a **dual-graph database design**.
 
 ---
 
 ## 2. Features
 
-💬 **Conversational AI Chatbot**  
-Maintains conversation history, supports follow-up queries, and enables dynamic topic switching.
+### 💬 Conversational AI
 
-🧠 **Self-Updating Knowledge Base**  
-Neo4j dual-graph setup enables continuous learning and updates with zero service interruption.
+* Remembers conversation history
+* Handles follow-up queries and topic switching
 
-📷 **Computer Vision Integration**  
-Processes uploaded document images using **Tesseract OCR**.
+### 🧠 Self-Updating Knowledge Base
 
-📤 **HR FAQ Management Platform**  
-Routes unanswered questions to HR. Once addressed:
-- Adds the answer to the knowledge base.
-- Notifies the user via email.
-- Updates chatbot knowledge instantly.
+* Neo4j dual-graph architecture (`active_graph` and `update_graph`)
+* Updates automatically after HR responds to new questions
 
-🔄 **Zero Downtime via Dual Graphs**  
-Live queries are served via `active_graph`, while `update_graph` handles background updates.
+### 📷 Document Image Processing
 
-📧 **Automated Notifications**  
-Users receive emails when their pending queries are answered.
+* OCR with **Tesseract** for scanned policies and screenshots
+
+### 🧾 HR FAQ Management Dashboard
+
+* Routes unanswered questions to HR
+* After response:
+
+  * Updates the knowledge base
+  * Notifies the user via email
+  * Updates the chatbot
+
+### 🔄 Dual-Graph with Zero Downtime
+
+* `active_graph`: Serves users
+* `update_graph`: Updated in the background and swapped in
+
+### 📧 Automated Notifications
+
+* Users receive email alerts when their queries are answered
 
 ---
 
 ## 3. How It Works
 
-### 🧩 Architecture Layers:
+### 🧩 Architecture Overview
 
-1. **Frontend Chatbot (UI Inspired by MS Teams Copilot)**  
-   Conversational interface supporting follow-up and topic switches.
+1. **Frontend Chatbot**
 
-2. **RAG Backend Engine**  
-   Embeds documents, performs similarity search, and returns top-ranked answers.
+   * Web UI inspired by Microsoft Teams Copilot
+   * Supports real-time chat with context retention
 
-3. **Neo4j Graph Database (Dual-Graph Design)**  
-   - `active_graph`: Serves user queries.  
-   - `update_graph`: Receives new data and becomes active on sync.
+### 2. **Backend: RAG Engine**
 
-4. **Computer Vision with Tesseract OCR**  
-   Processes screenshots or scanned documents submitted by users.
+- Analyzes the incoming user query to extract **key entities** and **semantic meaning**.
+- **Hybrid Search Pipeline**:
+  - **Neo4j Graph Database** is used to identify relevant policy nodes and their relationships based on extracted entities.
+  - **Vector Database** retrieves semantically similar document chunks using Azure OpenAI embeddings.
+- **Combined Results**:
+  - Responses from Neo4j (entity-based search) and the Vector DB (semantic search) are merged.
+  - Ensures highly relevant and context-aware answers.
+- **Optimized Search Time**:
+  - Neo4j acts as a pre-filter, reducing the load on the vector DB and speeding up the overall response time.
 
-5. **HR Admin Dashboard**  
-   - Displays unanswered questions.  
-   - Allows HR staff to respond.  
-   - Triggers knowledge base and email updates.
+
+3. **Neo4j Dual-Graph Design**
+
+   * `active_graph`: Used in production
+   * `update_graph`: Updated version activated post-sync
+
+4. **Tesseract OCR**
+
+   * Extracts text from uploaded images
+
+5. **Admin Dashboard (FAQ System)**
+
+   * HR views and responds to unanswered queries
+   * Triggers graph updates and user notifications
 
 ---
 
@@ -95,97 +124,95 @@ cd HOYA_Untitled
 pip install -r requirements.txt
 ```
 
-### 3. Setup Tesseract OCR
+### 3. Install Tesseract OCR
 
-** macOS (via Homebrew):
+#### macOS (Homebrew):
 
 ```bash
 brew install tesseract
 ```
 
-* Windows:
+#### Windows:
 
-** Download from https://github.com/tesseract-ocr/tesseract
-
-** Add the install path (e.g., C:\Program Files\Tesseract-OCR) to your system's PATH.
+* Download from: [https://github.com/tesseract-ocr/tesseract](https://github.com/tesseract-ocr/tesseract)
+* Add the install path (e.g., `C:\Program Files\Tesseract-OCR`) to the system `PATH`.
 
 ### 4. Configure Environment Variables
 
-- Create a .env file in the root directory:
+Create a `.env` file in the root directory:
+
 ```bash
-### Azure OpenAI Services 
+### Azure OpenAI Configuration
 OPENAI_API_TYPE="azure"
-AZURE_OPENAI_API_VERSION="___"                 
-AZURE_OPENAI_ENDPOINT="___"
-AZURE_OPENAI_APIKEY="___" 
-AZURE_OPENAI_DEPLOYMENT_NAME="___"
-AZURE_OPENAI_MODEL_NAME="___"
-AZURE_EMBEDDING_DEPLOYMENT_NAME="___"
-AZURE_TEXT_EMBEDDING_MODEL="___"
-FOLDER_ID = "folder_id of where the documents are stored"
-DATABASE_URL="url for the databse with all unanswered questions and related users(email)"
+AZURE_OPENAI_API_VERSION="2024-08-01"                 
+AZURE_OPENAI_ENDPOINT="your_endpoint_here"
+AZURE_OPENAI_APIKEY="your_api_key_here"
+AZURE_OPENAI_DEPLOYMENT_NAME="your_deployment_name"
+AZURE_OPENAI_MODEL_NAME="gpt-4"
+AZURE_EMBEDDING_DEPLOYMENT_NAME="embedding_deployment_name"
+AZURE_TEXT_EMBEDDING_MODEL="text-embedding-ada-002"
 
+### Document Storage Folder
+FOLDER_ID="folder_id_where_documents_are_stored"
+
+### Database URL
+DATABASE_URL="your_unanswered_questions_db_url"
 ```
 
-Note: If utilising Azure OpenAI API Key, utilise 2024 Aug Version and higher. Versions before 2024 Aug are incompatible with Neo4j's LLMGraphTransformer
+> ⚠️ Use **2024-08 API version or newer** to ensure compatibility with Neo4j’s LLMGraphTransformer.
 
-### 5. Run the following commands to run the project
+### 5. Run the Application
 
-* Run the backend server
+Start the servers:
+
 ```bash
+# Backend server
 python app.py
-```
 
-* Run the faq_backend server
-```bash
+# FAQ Backend server
 python faq_backend.py
-```
 
-* Run the applicaton
-```bash
+# Frontend
 npm run dev
 ```
 
+---
+
 ## 5. Usage
-* Launch the chatbot via the web interface.
 
-** Ask HR-related questions or upload policy documents as images.
+1. Access the chatbot via your browser.
+2. Ask HR-related questions or upload a screenshot of HR policies.
+3. If a question isn't answered:
 
-** If a query is unanswered:
-
-*** It is routed to HR via the admin dashboard.
-
-*** Once answered, you receive an email.
-
-** The chatbot is updated automatically.
+   * It gets routed to HR via the dashboard.
+   * Once HR replies, you'll receive an email notification.
+   * The chatbot updates itself automatically.
 
 ---
 
-7. Future Plans
-🌐 Multi-language support.
+## 6. Future Plans
 
-📲 Deploy on Microsoft Teams.
+🌐 **Multi-language support**
+💬 **Microsoft Teams integration**
+⚖️ **Legal Department**
 
-⚖️ Expand to Legal Department:
+* Contract clause detection and alarm phrasing
 
-- Contract clause scanning (via image uploads) using the chatbot.
+💰 **Finance Department**
 
-- Review for alarming phrases.
+* FAQs on payroll, reimbursement, SOPs
 
-💰 Expand to Finance Department:
+🔗 **Microsoft Graph API Integration**
 
-- FAQs on payroll, reimbursement, and finance SOPs.
-
-🔗 Integration with Microsoft Graph API for syncing with D365.
+* D365 and HRMS sync
 
 ---
 
-## 7. Contributors List
-👩‍💻 Risha Sunil Shetty – GitHub: @RISHASUN001
+## 7. Contributors
 
-👩‍💻 Janhavee Singh - GitHub: @JanhaveeSingh
+👩‍💻 **Risha Sunil Shetty** – [@RISHASUN001](https://github.com/RISHASUN001)
+👩‍💻 **Janhavee Singh** – [@JanhaveeSingh](https://github.com/JanhaveeSingh)
+👩‍💻 **Shi Ying Wang** – [@yiihsuenn](https://github.com/yiihsuenn)
+👩‍💻 **Yi Hsuen Cheng** – [@cjkejw](https://github.com/cjkejw)
 
-👩‍💻 Shi Ying Wang - GitHub: @yiihsuenn
-
-👩‍💻 Yi Hsuen Cheng - GitHub: @cjkejw
 
