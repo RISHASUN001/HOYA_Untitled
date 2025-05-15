@@ -78,7 +78,7 @@ Modern HR departments face a flood of repetitive queries. ChatHera helps by:
    * Web UI inspired by Microsoft Teams Copilot
    * Supports real-time chat with context retention
 
-### 2. **Backend: RAG Engine**
+2. **Backend: RAG Engine**
 
 - Analyzes the incoming user query to extract **key entities** and **semantic meaning**.
 - **Hybrid Search Pipeline**:
