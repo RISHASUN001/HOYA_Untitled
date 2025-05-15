@@ -187,7 +187,7 @@ entity_chain = prompt | llm.with_structured_output(Entities)
 
 from neo4j import GraphDatabase
 import os
-from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
+from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
 
 
 # Initialize Neo4j driver
@@ -737,7 +737,7 @@ def monitor_folder():
 
 
 # Set Tesseract OCR path (only needed for Windows)
-pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # Route for checking if the API is running
 @app.route('/', methods=['GET'])
@@ -926,26 +926,30 @@ def escalate_question():
     except Exception as e:
         logger.error(f"Database error: {e}")
         return jsonify({"error": "Failed to log question to database"}), 500
+    
+relevance_prompt = ChatPromptTemplate.from_messages([
+    ("system", 
+     "Determine if this question is work-related and appropriate for an HR assistant at Hoya Electronics. "
+     "Consider questions about policies, benefits, procedures, workplace issues, or company information as relevant. "
+     "Respond with exactly 'relevant' or 'irrelevant'."),
+    ("human", "{question}")
+])
 
-from flask import request, jsonify, session
-import logging
-
-logger = logging.getLogger(__name__)
+relevance_chain = relevance_prompt | llm | StrOutputParser()
 
 @app.route("/api/hr-query", methods=["POST"])
 def chatbot():
     try:
         logger.info("Received a request to the chatbot endpoint.")
 
-        # Parse raw data from the request body
-        raw_data = request.data.decode("utf-8").strip()
-        if not raw_data:
-            logger.error("No input provided.")
-            return jsonify({"error": "No input provided"}), 400
-
-        # Hardcode poster_description as empty string
-        question = raw_data
-        poster_description = ""
+        # Parse input data
+        data = json.loads(request.data)
+        question = data.get("question", "").strip()
+        poster_description = data.get("poster_description", "").strip()
+        
+        if not question:
+            logger.error("Question is required.")
+            return jsonify({"error": "Question is required"}), 400
 
         # Get session state
         current_poster = session.get("active_poster", "")
@@ -1010,15 +1014,29 @@ def chatbot():
             logger.error(f"Processing error: {e}")
             return jsonify({"error": "Failed to process question"}), 500
 
-        # Handle response
-        if result and "relevant information" not in result:
+        # NEW: Check relevance only if no answer was found
+        if not result or "relevant information" in result:
+            # Enhanced relevance check that considers conversation context
+            relevance_check = relevance_chain.invoke({
+                "question": f"Context: {chat_history[-2:] if chat_history else 'No context'}\nQuestion: {question}"
+            })
+            
+            if relevance_check.lower() != "relevant":
+                logger.info(f"Irrelevant question detected: {question}")
+                return jsonify({
+                    "answer": "Please ask work-related questions about Hoya Electronics policies, benefits, or workplace matters."
+                }), 200
+            else:
+                logger.info("No answer found but question is relevant. Escalating to HR.")
+                return jsonify({"answer": "I couldn't find an answer to your question. I'll escalate this to HR."}), 202
+        else:
             # Update appropriate history
             session[history_key] = chat_history + [(question, result)]
             return jsonify({"answer": result}), 200
-        else:
-            logger.info("No answer found. Escalating to HR.")
-            return jsonify({"answer": result}), 202
 
+    except json.JSONDecodeError:
+        logger.error("Invalid request format")
+        return jsonify({"error": "Invalid JSON format"}), 400
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return jsonify({"error": "Internal server error"}), 500

@@ -1,2 +1,168 @@
-Q: "What is method overloading?"
-A: same same but different!!
+Q: DoraemonNobita?
+A: Japanese
+
+Q: How to take leave?
+A: Please get permission from your supervisor. 
+
+Q: Who is Janhavee?
+A: She is a girl
+
+Q: Who is shi ying
+A: She is our team mate
+
+Q: Question: Who is risha
+A: She is a girl in Team Untitled
+
+Q: where is the room of supervisor?
+A: in abcd
+
+Q: What is resolve conflict?
+A: Do not fight
+
+Q: how do i get my paycheck
+A: in the bank
+
+Q: You tell me?
+A: Nil
+
+Q: help me 
+A: Idk man
+
+Q: What employee wellness programs (mental health, fitness, etc.) are available?
+A: mental health support (counseling services, stress management workshops), fitness benefits (gym discounts, on-site exercise programs), and preventive health screenings. Additional wellness initiatives include ergonomic assessments, nutrition guidance, and employee assistance programs (EAP) for confidential support.
+
+Q: What is the company’s attendance and punctuality policy?
+A: At Hoya Electronics, employees are expected to arrive on time for their scheduled shifts and adhere to assigned work hours. Excessive tardiness or unexcused absences may result in disciplinary action. If you are unable to attend work, you must notify your supervisor as soon as possible. Medical or emergency leave may require documentation. Flexibility may apply based on role and prior approval.
+
+Q: Are there tuition reimbursement or professional development programs?
+A: Yes, we offer tuition reimbursement for approved courses related to your role, up to $X per year with manager approval. We also provide professional development programs, including workshops, certifications, and leadership training. Eligibility and coverage details are available through HR.
+
+Q: How to walk?
+A: With your legs
+
+Q: How to sleep?
+A: Shut your eyes
+
+Q: How to sleep?
+A: Shut your eyes. 
+
+Q: How to live?
+A: Keep breathing. 
+
+Q: How to live?
+A: keep breathing.
+
+Q: Doraemon
+A: Nobita
+
+Q: How to live?
+A: keep breathing.
+
+Q: How to live?
+A: keep breathing.
+
+Q: How to live?
+A: keep breathing
+
+Q: How to swim?
+A: Flap your arms
+
+Q: How to run?
+A: walk faster
+
+Q: How to jump?
+A: place two feet in the air
+
+Q: How to walk?
+A: move both legs
+
+Q: who is keifer
+A: keifer is a handsome
+
+Q: How does it work?
+A: if it works, it works. 
+
+Q: How does it work?
+A: if it works, it works. 
+
+Q: How to walk?
+A: move your legs
+
+Q: Who is namjoon
+A: Namjoon is the leader
+
+Q: Who is jungkook
+A: JK
+
+Q: Who is jimin
+A: He is park jimin
+
+Q: who is mamamoo?
+A: korean girl group
+
+Q: {"userResponse":"How to dance"}
+A: With props
+
+Q: who is mona lisa
+A: a drawing
+
+Q: who is mamamoo?
+A: a korean girl group
+
+Q: who is YI Hsuen
+A: a groupmate
+
+Q: How to take leave?
+A: Ask your boss permission
+
+Q: How to dream
+A: Close eyes
+
+Q: How to make transportation claims
+A: a
+
+Q: How to dance
+A: move your leg and hands
+
+Q: what is the purpose of the HR Department poster
+A: It is about HR, A day in their lives
+
+Q: What is the HR Department, described as "Your Partner in People Management," all about?
+A: It is day in the life about HR
+
+Q: Question: Who is alia bhatt
+A: She is a bollywood actress
+
+Q: Question: Who is radhika
+A: Risha Mom
+
+Q: where is the supervisor room?
+A: It's on the ground floor.
+
+Q: How many sick leave can I take in a year?
+A: At HOYA, employees are entitled to 10 paid sick days per year as part of our commitment to supporting your health and well-being. Unused sick days do not roll over into the next year. If you require additional time off due to a serious medical condition, you may be eligible for extended leave under our medical leave policy.
+
+
+Q: how do i get my paycheck
+A: through bank
+
+Q: how to get credits on paycheck
+A: idk
+
+Q: What employee wellness programs (mental health, fitness, etc.) are available?
+A: mental health support (counseling services, stress management workshops), fitness benefits (gym discounts, on-site exercise programs), and preventive health screenings. Additional wellness initiatives include ergonomic assessments, nutrition guidance, and employee assistance programs (EAP) for confidential support.
+
+Q: How are performance reviews conducted, and how often?
+A: Performance reviews are conducted annually, with mid-year check-ins for feedback. Evaluations are based on goal achievement, job performance, and core competencies. Managers and employees discuss results in a one-on-one meeting, followed by a documented development plan.
+
+Q: Who is jin
+A: He is wwh
+
+Q: What is the dress code in Hoya
+A: Formal
+
+Q: Who is mamamoo?
+A: Korean girl group
+
+Q: Where is the cafeteria?
+A: The cafeteria is in level 3.

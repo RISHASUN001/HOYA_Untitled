@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>HR FAQ Management</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        h2 {
+            font-family: "Gill Sans";
+            font-style: oblique;
+        }
+
+        body {
+            background-color: #fbfbf9;
+            font-family: "Inter", sans-serif;
+            transition: background 0.3s ease;
+        }
+
+        .container {
+            max-width: 800px;
+            margin-top: 40px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+        }
+
+        .list-group-item {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s ease-in-out;
+        }
+
+        .list-group-item:hover {
+            background-color: #eef2ff;
+        }
+
+        /* For the checkboxes */
+        .form-check-input {
+            margin-right: 10px;
+        }
+
+        /* Dark Mode Toggle */
+        #dark-mode-toggle {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .dark-mode {
+            background-color: #1e1e2e;
+            color: white;
+        }
+
+        .dark-mode .card {
+            background: #2a2a40;
+            color: white;
+        }
+
+        .dark-mode .list-group-item {
+            background: #33334d;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="dark-mode-toggle" class="btn btn-outline-dark">🌙</button>
+
+    <div class="container">
+        <h2 class="text-center mb-4">Hoya Electronics FAQs</h2>
+
+        <!-- Unanswered Questions Section -->
+        <div class="card p-3">
+            <h5>Pending Questions</h5>
+            <ul id="unanswered-questions" class="list-group">
+                <li class="list-group-item text-muted">Loading...</li>
+            </ul>
+            <button id="deleteSelectedBtn" class="btn btn-danger mt-3">
+                Delete Selected
+            </button>
+        </div>
+
+        <!-- Answer Form -->
+        <div id="answer-section" class="card p-4 mt-4 hidden">
+            <h5>Response</h5>
+            <form id="answer-form">
+                <input type="hidden" id="question-id" />
+                <div class="mb-3">
+                    <label class="form-label">Question</label>
+                    <input type="text" id="question-text" class="form-control" readonly />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Your Answer</label>
+                    <textarea id="answer-text" class="form-control" rows="4" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Submit Answer</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete the selected question(s)?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                    <button id="confirm-delete-btn" class="btn btn-danger">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedQuestionIds = [];
+
+        function loadUnansweredQuestions() {
+            $.get("/unanswered", function (data) {
+                let list = $("#unanswered-questions");
+                list.empty();
+                if (data.length === 0) {
+                    list.append("<li class='list-group-item text-muted'>No pending questions.</li>");
+                    return;
+                }
+                data.forEach((question) => {
+                    // Create a list item
+                    let listItem = $("<li class='list-group-item'></li>").text(question.question);
+
+                    // Add a checkbox for multi-select
+                    let checkBox = $(
+                        "<input type='checkbox' class='form-check-input me-2' />"
+                    );
+                    checkBox.change(() => {
+                        if (checkBox.is(":checked")) {
+                            selectedQuestionIds.push(question.id);
+                        } else {
+                            selectedQuestionIds = selectedQuestionIds.filter(
+                                (id) => id !== question.id
+                            );
+                        }
+                    });
+
+                    // When clicking on the question text, show answer section
+                    listItem.click(() => showAnswerSection(question));
+
+                    // Prepend the checkbox so it appears at the left
+                    listItem.prepend(checkBox);
+
+                    list.append(listItem);
+                });
+            });
+        }
+
+        function showAnswerSection(question) {
+            $("#question-id").val(question.id);
+            $("#question-text").val(question.question);
+            $("#answer-section").fadeIn(200);
+        }
+
+        // Submit the answer form
+        $("#answer-form").on("submit", function (event) {
+            event.preventDefault();
+
+            const questionId = $("#question-id").val();
+            const answer = $("#answer-text").val();
+
+            $.ajax({
+                url: "/answer",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ id: questionId, answer: answer }),
+                success: function (response) {
+                    alert(response.message);
+                    loadUnansweredQuestions();
+                    $("#answer-section").hide();
+                    $("#answer-form")[0].reset();
+                },
+                error: function (error) {
+                    alert("Error saving the answer. Please try again.");
+                },
+            });
+        });
+
+        // Bulk delete logic
+        $("#deleteSelectedBtn").click(() => {
+            if (selectedQuestionIds.length === 0) {
+                alert("No questions selected.");
+                return;
+            }
+            $("#deleteModal").modal("show");
+        });
+
+        $("#confirm-delete-btn").click(() => {
+            if (selectedQuestionIds.length === 0) {
+                alert("No questions selected for deletion.");
+                return;
+            }
+            $.ajax({
+                url: "/delete",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ ids: selectedQuestionIds }),
+                success: function () {
+                    $("#deleteModal").modal("hide");
+                    selectedQuestionIds = [];
+                    loadUnansweredQuestions();
+                },
+                error: function (xhr) {
+                    alert("Error deleting question: " + xhr.responseText);
+                },
+            });
+        });
+
+        // Dark mode toggle
+        $("#dark-mode-toggle").click(() => {
+            $("body").toggleClass("dark-mode");
+        });
+
+        $(document).ready(() => {
+            loadUnansweredQuestions();
+        });
+    </script>
+</body>
+
+</html>
