@@ -1,6 +1,4 @@
-Here's your revised and polished `README.md` with improved structure, clarity, and markdown formatting. I’ve ensured consistency in section ordering, spacing, and language usage for a more professional and readable presentation:
 
----
 
 # 🏢 Team\_Untitled – ChatHera: The HR Chatbot Revolution 💬
 
