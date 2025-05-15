@@ -80,15 +80,15 @@ Modern HR departments face a flood of repetitive queries. ChatHera helps by:
 
 2. **Backend: RAG Engine**
 
-- Analyzes the incoming user query to extract **key entities** and **semantic meaning**.
-- **Hybrid Search Pipeline**:
-  - **Neo4j Graph Database** is used to identify relevant policy nodes and their relationships based on extracted entities.
-  - **Vector Database** retrieves semantically similar document chunks using Azure OpenAI embeddings.
-- **Combined Results**:
-  - Responses from Neo4j (entity-based search) and the Vector DB (semantic search) are merged.
-  - Ensures highly relevant and context-aware answers.
-- **Optimized Search Time**:
-  - Neo4j acts as a pre-filter, reducing the load on the vector DB and speeding up the overall response time.
+  - Analyzes the incoming user query to extract **key entities** and **semantic meaning**.
+  - **Hybrid Search Pipeline**:
+    - **Neo4j Graph Database** is used to identify relevant policy nodes and their relationships based on extracted entities.
+    - **Vector Database** retrieves semantically similar document chunks using Azure OpenAI embeddings.
+  - **Combined Results**:
+    - Responses from Neo4j (entity-based search) and the Vector DB (semantic search) are merged.
+    - Ensures highly relevant and context-aware answers.
+  - **Optimized Search Time**:
+    - Neo4j acts as a pre-filter, reducing the load on the vector DB and speeding up the overall response time.
 
 
 3. **Neo4j Dual-Graph Design**
